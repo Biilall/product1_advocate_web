@@ -53,7 +53,7 @@ const HeroSection = () => {
       </div>
       <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 pb-12 sm:pb-20 pt-28 sm:pt-40">
         <p className="font-sans text-xs sm:text-sm tracking-[0.3em] uppercase text-primary-foreground/70 mb-3 sm:mb-4">
-          Advocate — Supreme Court of Pakistan
+          Advocate — High Court of Pakistan
         </p>
         <h1 className="text-3xl sm:text-5xl md:text-7xl font-serif text-primary-foreground mb-4 sm:mb-6 tracking-wide">
           M Salman Tahir
