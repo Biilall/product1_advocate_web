@@ -1,19 +1,19 @@
 import { MapPin, Phone, Mail } from "lucide-react";
 
 const offices = [
-  {
-    city: "Islamabad",
-    address: "Suite 401, Kohsar Block, F-6 Markaz, Islamabad",
-    phone: "+92 51 2876543",
-    mapSrc:
-      "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3318.9936854396437!2d73.02580577636266!3d33.72952493468726!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38dfbfc5fba0bfed%3A0x3d0e5c8e8a8e5e0!2sF-6%20Markaz%2C%20Islamabad!5e0!3m2!1sen!2spk!4v1710000000000",
-  },
+  // {
+  //   city: "Islamabad",
+  //   address: "Suite 401, Kohsar Block, F-6 Markaz, Islamabad",
+  //   phone: "+92 51 2876543",
+  //   mapSrc:
+  //     "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3318.9936854396437!2d73.02580577636266!3d33.72952493468726!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38dfbfc5fba0bfed%3A0x3d0e5c8e8a8e5e0!2sF-6%20Markaz%2C%20Islamabad!5e0!3m2!1sen!2spk!4v1710000000000",
+  // },
   {
     city: "Lahore",
-    address: "Chamber No. 12, Lahore High Court Bar, The Mall, Lahore",
-    phone: "+92 42 3567890",
+    address: "office no. 401, 4th floor, Qureshi building, lower mall road, Lahore",
+    phone: "+92 300 6829799",
     mapSrc:
-      "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3400.0!2d74.3141!3d31.5560!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39190476d5e5e5e5%3A0x1234567890abcdef!2sLahore%20High%20Court!5e0!3m2!1sen!2spk!4v1710000000000",
+      "https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d3399.491158083914!2d74.30047497561343!3d31.565576474193257!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zMzHCsDMzJzU2LjEiTiA3NMKwMTgnMTEuMCJF!5e0!3m2!1sen!2s!4v1774053754848!5m2!1sen!2s",
   },
 ];
 
@@ -65,7 +65,7 @@ const ContactSection = () => {
       <footer className="mt-24 mb-12 pt-12 border-t border-border text-center">
         <p className="font-serif text-lg">M Salman Tahir</p>
         <p className="font-sans text-xs text-muted-foreground mt-2 tracking-wider uppercase">
-          Advocate — Supreme Court of Pakistan
+          Advocate — High Court of Pakistan
         </p>
       </footer>
     </section>
