@@ -1,18 +1,16 @@
-# Step 1: Build
-FROM node:18-alpine AS builder
+FROM node:18-alpine
+
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm install
 
 COPY . .
+
 RUN npm run build
 
-# Step 2: Run
-FROM node:18-alpine
-WORKDIR /app
-
-COPY --from=builder /app ./
+RUN npm install -g serve
 
 EXPOSE 3000
-CMD ["npm", "start"]
+
+CMD ["serve", "-s", "dist", "-l", "3000"]
