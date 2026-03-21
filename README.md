@@ -49,3 +49,4 @@ This project is built with:
 - Tailwind CSS
 
 
+by digital wisdom
