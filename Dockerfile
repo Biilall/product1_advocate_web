@@ -10,7 +10,7 @@ COPY . .
 
 RUN npm run build
 
-# Production stage - run both frontend and backend
+# Production stage - run backend that serves frontend
 FROM node:20
 
 WORKDIR /app
@@ -25,11 +25,11 @@ COPY --from=frontend-build /app/dist ./dist
 # Copy backend source
 COPY server ./server
 
-# Install serve for frontend
-RUN npm install -g serve
+# Create uploads directory
+RUN mkdir -p uploads
 
-# Expose both ports
-EXPOSE 8080 3001
+# Expose port 8080 for Cloud Run
+EXPOSE 8080
 
-# Run both frontend and backend
-CMD ["sh", "-c", "serve -s dist -l 8080 & node --import tsx/esm server/server.ts"]
+# Run the backend server (which now serves both API and static files)
+CMD ["node", "--import", "tsx/esm", "server/server.ts"]

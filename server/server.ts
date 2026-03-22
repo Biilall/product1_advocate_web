@@ -33,7 +33,7 @@ process.on('unhandledRejection', (err) => {
 });
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 8080;
 
 console.log('=== STARTING SERVER ===');
 console.log('Port:', port);
@@ -245,6 +245,9 @@ async function sendMessageToAssistant(
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from the dist directory (built frontend)
+app.use(express.static(path.join(__dirname, '..', 'dist')));
 
 // Add request logging middleware
 app.use((req, res, next) => {
@@ -520,6 +523,11 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
   }
 });
 
+
+// Catch-all handler: serve React app for any unmatched routes
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+});
 
 app.listen(port, () => {
   console.log(`Voice backend running at http://localhost:${port}`);
