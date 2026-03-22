@@ -520,7 +520,6 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(3001, () => console.log('Server running on port 3001'));
 
 app.listen(port, () => {
   console.log(`Voice backend running at http://localhost:${port}`);
