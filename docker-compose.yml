@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"    # Frontend (React)
+      - "3001:3001"    # Backend (Express API)
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_ASSISTANT_ID=${OPENAI_ASSISTANT_ID}
+      - PORT=3001
+    volumes:
+      - ./server/chat.db:/app/server/chat.db
+    restart: unless-stopped

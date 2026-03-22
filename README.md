@@ -1,52 +1,109 @@
-## How can I edit this code?
+# Law Nexus Chat
 
-There are several ways of editing your application.
+A React-based web application with integrated GPT-powered chat functionality for legal consultations.
 
-**Use your preferred IDE**
+## Features
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Text Chat**: Send text messages to your OpenAI Assistant
+- **Voice Notes**: Record and send voice messages (transcribed using OpenAI Whisper)
+- **Thread-Based Conversations**: Each chat session maps to an OpenAI thread for conversation continuity
+- **Persistent Chat History**: All conversations saved locally and synced with OpenAI threads
+- **Real-time UI**: Modern chat interface with loading states and notifications
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Technologies Used
 
-Follow these steps:
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS, shadcn/ui
+- **Backend**: Node.js, Express, TypeScript
+- **AI**: OpenAI Assistants API for chat, OpenAI Whisper for transcription
+- **Database**: SQLite (better-sqlite3) for local storage
+- **Other**: Multer for file uploads, CORS for cross-origin requests
 
+## Setup Instructions
+
+### Prerequisites
+
+- Node.js & npm installed
+- OpenAI API key
+
+### Installation
+
+1. Clone the repository:
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
 git clone <YOUR_GIT_URL>
+cd law-nexus-chat
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Install dependencies:
+```sh
+npm install
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. Set up environment variables:
+   - Add your OpenAI API key and Assistant ID to `.env` file:
+   ```
+   OPENAI_API_KEY=sk-proj-your-actual-api-key-here
+   OPENAI_ASSISTANT_ID=asst_your_assistant_id_here
+   PORT=3001
+   ```
+   
+   **Getting these values:**
+   - **API Key**: Get from [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+   - **Assistant ID**: [Create/Get from Assistants](https://platform.openai.com/assistants)
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+4. Start the development server (runs both frontend and backend):
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The application will be available at `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### API Endpoints
 
-**Use GitHub Codespaces**
+- `POST /api/chat/start` - Creates new user session and thread
+- `GET /api/chat/history/:threadId` - Get chat history for a thread
+- `POST /api/chat/text` - Send text message (includes user info extraction)
+- `POST /api/chat/voice` - Send voice message (transcribed and processed)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Database Schema
 
-## What technologies are used for this project?
+```
+users:
+- id (PRIMARY KEY)
+- name, phone, email
+- info_collected (boolean)
+- created_at
 
-This project is built with:
+threads:
+- id (PRIMARY KEY)
+- thread_id (local thread ID)
+- openai_thread_id (OpenAI Assistants thread ID)
+- created_at
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+chat_history:
+- id (PRIMARY KEY)
+- thread_id (local reference)
+- user_id (foreign key to users)
+- message, response
+- message_type ('text' or 'voice')
+- created_at
+```
+
+## How It Works
+
+1. **Session Creation**: Each new chat creates a local thread ID and an OpenAI thread
+2. **Message Handling**: 
+   - Text/voice messages sent to the OpenAI Assistant API
+   - Assistant processes using its configured instructions and knowledge
+3. **Thread Continuity**: OpenAI threads maintain conversation memory automatically
+4. **Voice Processing**: Audio transcribed with Whisper, then sent to Assistant
+5. **History Persistence**: All messages stored locally in SQLite, synced with OpenAI
+
+## Development
+
+- Frontend runs on port 8080 (proxied to backend on 3001)
+- Backend API runs on port 3001
+- Database file `server/chat.db` is created automatically
+- Voice recordings are temporarily stored in `uploads/` directory
 
 
 by digital wisdom

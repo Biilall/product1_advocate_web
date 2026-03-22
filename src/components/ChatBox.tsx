@@ -5,53 +5,29 @@ import salmanAvatar from "@/assets/salman-avatar.png";
 interface Message {
   role: "user" | "assistant";
   text: string;
+  type?: "text" | "voice";
 }
 
-const quickReplies: Record<string, string> = {
-  "what cases do you handle?":
-    "I handle both Criminal and Civil cases including murder defense, anti-terrorism, property disputes, family law, corporate litigation, and constitutional petitions.",
-  "what is your success rate?":
-    "I have maintained over 85% favorable outcomes across all cases since I began practising in 2016.",
-  "how can i contact you?":
-    "You can reach me at salman.tahir@law.pk or call +92 51 2876543. My offices are in Islamabad (F-6 Markaz) and Lahore (High Court Bar).",
-  "what are your fees?":
-    "Fees depend on the nature and complexity of the case. Please contact my office for a consultation and we can discuss the details.",
-};
-
-function getReply(input: string): string {
-  const lower = input.toLowerCase().trim();
-  for (const [key, val] of Object.entries(quickReplies)) {
-    if (lower.includes(key.split(" ").slice(0, 3).join(" ")) || key.includes(lower.split(" ").slice(0, 3).join(" "))) {
-      return val;
-    }
-  }
-  return "Thank you for reaching out. For detailed inquiries, please email me at salman.tahir@law.pk or call +92 51 2876543. I will respond at the earliest.";
-}
-
-function playNotificationSound() {
-  const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.frequency.value = 880;
-  osc.type = "sine";
-  gain.gain.setValueAtTime(0.15, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + 0.4);
+interface ChatHistory {
+  id: number;
+  user_id: number;
+  message: string;
+  response: string;
+  message_type: string;
+  created_at: string;
 }
 
 const ChatBox = () => {
   const [open, setOpen] = useState(true);
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", text: "Assalam-o-Alaikum. I am M Salman Tahir. How may I assist you today?" },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isListening, setIsListening] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotification, setShowNotification] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -62,74 +38,228 @@ const ChatBox = () => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  const send = () => {
-    const text = input.trim();
-    if (!text) return;
+  // Initialize user
+  useEffect(() => {
+    const initSession = async () => {
+      let threadId = localStorage.getItem('chatThreadId');
+      if (!threadId) {
+        try {
+          const response = await fetch('/api/chat/start', {
+            method: 'POST',
+          });
+          const data = await response.json();
+          threadId = data.threadId;
+          localStorage.setItem('chatThreadId', threadId);
+          setThreadId(threadId);
+          // Start with welcome message
+          setMessages([{ role: "assistant", text: "Assalam-o-Alaikum! I am M Salman Tahir, a legal expert. To better assist you, could you please share your name, phone number, and email address?" }]);
+        } catch (error) {
+          console.error('Failed to create session:', error);
+          setMessages([{ role: "assistant", text: "Assalam-o-Alaikum. I am M Salman Tahir. How may I assist you today?" }]);
+        }
+      } else {
+        setThreadId(threadId);
+        loadHistory(threadId);
+      }
+    };
+
+    initSession();
+  }, []);
+
+  const loadHistory = async (threadId: string) => {
+    try {
+      const response = await fetch(`/api/chat/history/${threadId}`);
+      const history: ChatHistory[] = await response.json();
+      const loadedMessages: Message[] = [];
+      history.forEach(h => {
+        loadedMessages.push({ role: 'user', text: h.message, type: h.message_type as 'text' | 'voice' });
+        loadedMessages.push({ role: 'assistant', text: h.response || ''});
+      });
+      if (loadedMessages.length === 0) {
+        loadedMessages.push({ role: "assistant", text: "Assalam-o-Alaikum! I am M Salman Tahir, a legal expert. To better assist you, could you please share your name, phone number, and email address?" });
+      }
+      setMessages(loadedMessages);
+    } catch (error) {
+      console.error('Failed to load history:', error);
+      setMessages([{ role: "assistant", text: "Assalam-o-Alaikum. I am M Salman Tahir. How may I assist you today?" }]);
+    }
+  };
+
+  const getSpecialResponse = (text: string): string | null => {
+    const normalized = text.trim().toLowerCase();
+
+    const paymentMethodsTrigger = /payment methods?|how.*pay|pay.*method|mobile.*payment|jazzcash/i;
+    const bankTransferTrigger = /bank transfer|bank details|bank account|ifsc|swift|account number/i;
+
+    if (paymentMethodsTrigger.test(normalized)) {
+      return "JazzCash Number: 0306-5234137";
+    }
+
+    if (bankTransferTrigger.test(normalized)) {
+      return "Please use this link: http://localhost:8080/bank-transfer-qr";
+    }
+
+    return null;
+  };
+
+  const sendTextMessage = async (text: string) => {
+    if (!text.trim()) return;
+
     const userMsg: Message = { role: "user", text };
     setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    stopListening();
 
-    // Simulate slight delay for assistant reply
-    setTimeout(() => {
-      const reply: Message = { role: "assistant", text: getReply(text) };
+    const special = getSpecialResponse(text);
+    if (special) {
+      const assistantMsg: Message = { role: "assistant", text: special };
+      setMessages((prev) => [...prev, assistantMsg]);
+      setInput("");
+      return;
+    }
+
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/chat/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId, message: text }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg: Message = { role: "assistant", text: data.error || 'Failed...' };
+        setMessages((prev) => [...prev, errorMsg]);
+        setIsLoading(false);
+        return;
+      }
+
+      // ✅ SAVE THREAD ID
+      if (data.threadId) {
+        setThreadId(data.threadId);
+      }
+
+      const reply: Message = { role: "assistant", text: data.response };
       setMessages((prev) => [...prev, reply]);
-      playNotificationSound();
 
       if (!open) {
         setUnreadCount((c) => c + 1);
       }
 
-      // Flash notification badge on header
       setShowNotification(true);
       setTimeout(() => setShowNotification(false), 2000);
-    }, 600);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      const errorMsg: Message = { role: "assistant", text: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}` };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in this browser.");
-      return;
+  const startRecording = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    mediaRecorderRef.current = mediaRecorder;
+    audioChunksRef.current = [];
+
+    mediaRecorder.ondataavailable = (event) => {
+      audioChunksRef.current.push(event.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+
+      console.log('Audio blob size:', audioBlob.size, 'type:', audioBlob.type);
+
+      // Reject very small files
+      if (audioBlob.size < 1000) {
+        alert('Recording too short. Please speak longer.');
+        return;
+      }
+
+      await sendVoiceMessage(audioBlob, 'webm');
+
+      stream.getTracks().forEach(track => track.stop());
+    };
+
+    mediaRecorder.start();
+    setIsRecording(true);
+  } catch (error) {
+    console.error('Failed to start recording:', error);
+    alert('Could not access microphone. Please check permissions.');
+  }
+};
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+const sendVoiceMessage = async (audioBlob: Blob, fileExtension: string = 'webm') => {
+  if (!threadId) return;
+  setIsLoading(true);
+
+  try {
+    const formData = new FormData();
+    formData.append('threadId', threadId);
+    formData.append('audio', audioBlob, `voice.${fileExtension}`);
+
+    const response = await fetch('/api/chat/voice', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err?.error || 'Voice API failed');
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-PK";
-    recognition.interimResults = false;
-    recognition.continuous = false;
+    const data = await response.json();
 
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-      setIsListening(false);
+    // Append user transcription
+    // const userMsg: Message = { role: 'user', text: `Voice: ${data.transcription}`, type: 'voice' };
+
+    // // Append assistant text reply
+    // const reply: Message = { role: 'assistant', text: data.responseText };
+    const userMsg: Message = { 
+      role: 'user', 
+      text: `Voice: ${data.transcription || ''}`, 
+      type: 'voice' 
     };
 
-    recognition.onerror = () => {
-      setIsListening(false);
+    const reply: Message = { 
+      role: 'assistant', 
+      text: data.responseText || 'No response' 
     };
+    setMessages(prev => [...prev, userMsg, reply]);
 
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
-  };
-
-  const stopListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
+    // Play assistant voice if available
+    if (data.responseAudio) {
+      const audio = new Audio(`data:audio/mp3;base64,${data.responseAudio}`);
+      audio.play().catch(err => console.error('Audio play failed:', err));
     }
-    setIsListening(false);
+
+  } catch (err) {
+    console.error(err);
+    const msg = err instanceof Error ? err.message : 'Unknown voice error';
+    setMessages(prev => [...prev, { role: 'assistant', text: msg }]);
+  } finally {
+    setIsLoading(false);
+  }
+};
+const send = () => {
+    sendTextMessage(input);
   };
 
-  const toggleListening = () => {
-    if (isListening) {
-      stopListening();
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
     } else {
-      startListening();
+      startRecording();
     }
   };
 
@@ -137,6 +267,30 @@ const ChatBox = () => {
     setOpen(true);
     setUnreadCount(0);
   };
+
+  const renderMessageText = (text?: string) => {
+  if (!text) return <span></span>; // ✅ prevent crash
+
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, i) => {
+    if (urlRegex.test(part)) {
+      return (
+        <a
+          key={`${part}-${i}`}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline hover:text-blue-800"
+        >
+          {part}
+        </a>
+      );
+    }
+    return <span key={`${part}-${i}`}>{part}</span>;
+  });
+};
 
   return (
     <>
@@ -195,40 +349,51 @@ const ChatBox = () => {
                     : "bg-foreground text-primary-foreground rounded-bl-lg rounded-tl-lg rounded-tr-lg ml-auto"
                 }`}
               >
-                {msg.text}
+                {renderMessageText(msg.text || '')}
               </div>
             ))}
             <div ref={messagesEndRef} />
           </div>
 
           <div className="border-t border-border flex items-center">
-            {!isListening && (
+            {!isRecording && !isLoading && (
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && send()}
+                onKeyDown={(e) => e.key === "Enter" && !isLoading && send()}
                 placeholder="Type a message..."
                 className="flex-1 px-4 py-3 bg-transparent font-sans text-sm outline-none placeholder:text-muted-foreground"
+                disabled={isLoading}
               />
             )}
-            {isListening && (
+            {isRecording && (
               <div className="flex-1 px-4 py-3 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                <span className="font-sans text-sm text-muted-foreground">Listening...</span>
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="font-sans text-sm text-muted-foreground">Recording...</span>
+              </div>
+            )}
+            {isLoading && !isRecording && (
+              <div className="flex-1 px-4 py-3 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <span className="font-sans text-sm text-muted-foreground">Thinking...</span>
               </div>
             )}
             <button
-              onClick={toggleListening}
+              onClick={toggleRecording}
+              disabled={isLoading}
               className={`px-2 transition-colors ${
-                isListening ? "text-destructive" : "text-muted-foreground hover:text-foreground"
-              }`}
-              aria-label={isListening ? "Stop listening" : "Voice input"}
+                isRecording ? "text-red-500" : "text-muted-foreground hover:text-foreground"
+              } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+              aria-label={isRecording ? "Stop recording" : "Voice input"}
             >
-              {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+              {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
             </button>
             <button
               onClick={send}
-              className="px-4 text-muted-foreground hover:text-foreground transition-colors"
+              disabled={isLoading || !input.trim()}
+              className={`px-4 transition-colors ${
+                isLoading || !input.trim() ? "text-muted-foreground opacity-50 cursor-not-allowed" : "text-muted-foreground hover:text-foreground"
+              }`}
               aria-label="Send"
             >
               <Send size={16} />
