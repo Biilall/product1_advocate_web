@@ -96,7 +96,7 @@ const ChatBox = () => {
     }
 
     if (bankTransferTrigger.test(normalized)) {
-      return "Please use this link: http://localhost:8080/bank-transfer-qr";
+      return "Please use this link: https://msalmantahir.com/bank-transfer-qr";
     }
 
     return null;
