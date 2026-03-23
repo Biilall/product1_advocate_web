@@ -67,7 +67,7 @@ RUN npm install --production
 # Copy compiled frontend + backend
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
-COPY --from=builder /app/server/*.js ./server/
+COPY --from=builder /app/server/*.ts ./server/
 
 # Ensure uploads folder exists
 RUN mkdir -p uploads
