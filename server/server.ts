@@ -10,7 +10,25 @@ import dotenv from 'dotenv';
 import gTTS from 'google-tts-api';
 
 import ffmpeg from 'fluent-ffmpeg';
+type ChatHistoryRow = {
+  id: number;
+  thread_id: string;
+  user_id: number;
+  message: string;
+  response: string;
+  message_type: string;
+  user_info_extracted?: string;
+  created_at: string;
+};
 
+type UserRow = {
+  id: number;
+  name?: string;
+  phone?: string;
+  email?: string;
+  info_collected?: boolean;
+  created_at: string;
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -305,7 +323,7 @@ app.post('/api/chat/text', async (req, res) => {
 
   try {
     // Get or create user for this thread
-    let userResult = db.prepare('SELECT ch.user_id, u.info_collected FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get(threadId);
+    let userResult = db.prepare('SELECT ch.user_id, u.info_collected FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get<{ user_id: number; info_collected?: boolean }>(threadId);
     console.log('User result:', userResult);
 
     let userId;
@@ -313,7 +331,7 @@ app.post('/api/chat/text', async (req, res) => {
     if (!userResult) {
       // Create new user for this thread
       const newUser = db.prepare('INSERT INTO users DEFAULT VALUES').run();
-      userId = newUser.lastInsertRowid;
+      userId = newUser.lastInsertRowid as number;
       console.log(`Created new user. UserId: ${userId}`);
       logDebug(`[POST /api/chat/text] Created new user. UserId: ${userId}`);
     } else {
@@ -477,11 +495,11 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
       localThreadId = `thread_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
     }
 
-    let userResult = db.prepare('SELECT ch.user_id FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get(localThreadId);
+    let userResult = db.prepare('SELECT ch.user_id FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get<{ user_id: number }>(localThreadId);
     let userId;
     if (!userResult) {
       const newUser = db.prepare('INSERT INTO users DEFAULT VALUES').run();
-      userId = newUser.lastInsertRowid;
+      userId = newUser.lastInsertRowid as number;
     } else {
       userId = userResult.user_id;
     }
