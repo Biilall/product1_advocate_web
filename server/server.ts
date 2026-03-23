@@ -51,7 +51,7 @@ process.on('unhandledRejection', (err) => {
 });
 
 const app = express();
-const port = process.env.PORT || 8080;
+const port = Number(process.env.PORT) || 8080;
 
 console.log('=== STARTING SERVER ===');
 console.log('Port:', port);

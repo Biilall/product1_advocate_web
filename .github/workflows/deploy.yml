@@ -42,4 +42,4 @@ jobs:
             --region asia-south1 \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars QUICK_REPLIES="${{ secrets.QUICK_REPLIES }}",FEE_LINK="${{ secrets.FEE_LINK }}",BANK_TRANSFER_QR_LINK="${{ secrets.BANK_TRANSFER_QR_LINK }}"
+            --set-env-vars PORT=8080,QUICK_REPLIES="${{ secrets.QUICK_REPLIES }}",FEE_LINK="${{ secrets.FEE_LINK }}",BANK_TRANSFER_QR_LINK="${{ secrets.BANK_TRANSFER_QR_LINK }}"
