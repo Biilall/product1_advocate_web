@@ -66,8 +66,7 @@ RUN npm install --production
 
 # Copy compiled frontend + backend
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/server ./server
-COPY --from=builder /app/server/*.ts ./server/
+COPY --from=builder /app/server_build ./server_build
 
 # Ensure uploads folder exists
 RUN mkdir -p uploads
@@ -76,5 +75,4 @@ RUN mkdir -p uploads
 EXPOSE 8080
 
 # Use compiled JS server
-# CMD ["node", "server/server.js"]
 CMD ["node", "server_build/server.js"]
