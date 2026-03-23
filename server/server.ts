@@ -548,6 +548,6 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
 });
 
-app.listen(port, () => {
-  console.log(`Voice backend running at http://localhost:${port}`);
+app.listen(port, "0.0.0.0", () => {
+  console.log("Server started on", port);
 });
