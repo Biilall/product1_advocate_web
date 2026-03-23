@@ -63,9 +63,11 @@ FROM node:20
 
 WORKDIR /app
 
+# 🔥 IMPORTANT: Install ffmpeg here
+RUN apt-get update && apt-get install -y ffmpeg
 # Copy only production dependencies
 COPY package*.json ./
-RUN npm install --production
+RUN npm install 
 
 # Copy compiled frontend + backend
 COPY --from=builder /app/dist ./dist
