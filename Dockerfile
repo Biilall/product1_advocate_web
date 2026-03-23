@@ -43,7 +43,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install all dependencies (including dev)
-RUN npm install
+RUN npm install --only=dev
 
 # Copy all source
 COPY . .
@@ -51,7 +51,10 @@ COPY . .
 # Build frontend (Vite)
 RUN npm run build
 
-# Compile backend TS to JS
+# # Install dev dependencies for TS compilation
+# RUN npm install --only=dev
+
+# Compile TS
 RUN npx tsc --project tsconfig.backend.json
 
 # Stage 2: Production image
