@@ -320,10 +320,10 @@ app.post('/api/chat/text', async (req, res) => {
   console.log(`ThreadId: ${threadId}, Message: ${message}`);
   console.log('Full request body:', JSON.stringify(req.body, null, 2));
   logDebug(`[POST /api/chat/text] Received request. ThreadId: ${threadId}, Message length: ${message?.length}`);
-
+  type UserQueryResult = { user_id: number; info_collected?: boolean };
   try {
     // Get or create user for this thread
-    let userResult = db.prepare('SELECT ch.user_id, u.info_collected FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get<{ user_id: number; info_collected?: boolean }>(threadId);
+    let userResult = db.prepare('SELECT ch.user_id, u.info_collected FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get(threadId) as UserQueryResult | undefined;
     console.log('User result:', userResult);
 
     let userId;
@@ -488,6 +488,7 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
     } else if (feeStructureTrigger.test(normalized)) {
       assistantText = 'Our fee structure is 5000 PKR per consultation. For details, visit http://localhost:8080/fees.';
     }
+    type VoiceUserQueryResult = { user_id: number };
 
     // Get or create user/thread records in DB
     let localThreadId = req.body.threadId;
@@ -495,7 +496,7 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
       localThreadId = `thread_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
     }
 
-    let userResult = db.prepare('SELECT ch.user_id FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get<{ user_id: number }>(localThreadId);
+    let userResult = db.prepare('SELECT ch.user_id FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get(localThreadId) as VoiceUserQueryResult | undefined;
     let userId;
     if (!userResult) {
       const newUser = db.prepare('INSERT INTO users DEFAULT VALUES').run();
