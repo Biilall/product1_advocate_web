@@ -479,14 +479,13 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
     const paymentMethodsTrigger = /payment methods?|how.*pay|pay.*method|mobile.*payment|jazzcash/i;
     const bankTransferTrigger = /bank transfer|bank details|bank account|ifsc|swift|account number/i;
     const feeStructureTrigger = /fee structure|fee.*structure|charges|pricing/i;
-
-    let assistantText: string | null = null;
+    let assistantText = null;
     if (paymentMethodsTrigger.test(normalized)) {
-      assistantText = 'JazzCash Number: 0306-5234137';
+      assistantText = process.env.QUICK_REPLIES 
     } else if (bankTransferTrigger.test(normalized)) {
-      assistantText = 'Please use this link: http://localhost:8080/bank-transfer-qr';
+      assistantText = process.env.QUICK_REPLIES 
     } else if (feeStructureTrigger.test(normalized)) {
-      assistantText = 'Our fee structure is 5000 PKR per consultation. For details, visit http://localhost:8080/fees.';
+      assistantText = process.env.QUICK_REPLIES 
     }
     type VoiceUserQueryResult = { user_id: number };
 
