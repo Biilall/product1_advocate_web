@@ -42,4 +42,4 @@ jobs:
             --region asia-south1 \
             --platform managed \
             --allow-unauthenticated \
-          --set-env-vars PORT="${{ secrets.PORT }}",OPENAI_ASSISTANT_ID="${{ secrets.OPENAI_ASSISTANT_ID }}",OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}",QUICK_REPLIES="${{ secrets.QUICK_REPLIES }}",FEE_LINK="${{ secrets.FEE_LINK }}",BANK_TRANSFER_QR_LINK="${{ secrets.BANK_TRANSFER_QR_LINK }}"
+            --set-env-vars OPENAI_ASSISTANT_ID="${{ secrets.OPENAI_ASSISTANT_ID }}",OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}",QUICK_REPLIES="${{ secrets.QUICK_REPLIES }}",FEE_LINK="${{ secrets.FEE_LINK }}",BANK_TRANSFER_QR_LINK="${{ secrets.BANK_TRANSFER_QR_LINK }}"
