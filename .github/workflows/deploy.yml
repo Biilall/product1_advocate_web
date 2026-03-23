@@ -41,7 +41,7 @@ jobs:
             --image gcr.io/product1advocateweb/nextjs-app \
             --region asia-south1 \
             --platform managed \
-            --allow-unauthenticated
+            --allow-unauthenticated \
             --set-env-vars \
               QUICK_REPLIES="${{ secrets.QUICK_REPLIES }}",\
               FEE_LINK="${{ secrets.FEE_LINK }}",\
