@@ -39,12 +39,13 @@ FROM node:20 AS builder
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y ffmpeg
+
 # Copy package.json and package-lock.json
 COPY package*.json ./
 
 # Install all dependencies (including dev)
-RUN npm install --only=dev
-
+RUN npm install 
 # Copy all source
 COPY . .
 
