@@ -500,7 +500,7 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
     // Generate audio for assistant reply (optional)
     let responseAudio = null;
     try {
-      responseAudio = await generateVoice(assistantText, transcriptionResult.language || 'en');
+      responseAudio = await generateVoice(assistantText, 'en');
       if (!responseAudio) responseAudio = await openaiVoice(assistantText);
     } catch (err) {
       console.warn('Could not generate TTS for assistant response:', err);
