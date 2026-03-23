@@ -53,7 +53,7 @@ RUN npm run build
 
 # Compile backend TS to JS
 RUN npx tsc --project tsconfig.json
-RUN npx tsc --project tsconfig.node.json
+# RUN npx tsc --project tsconfig.node.json
 
 # Stage 2: Production image
 FROM node:20
