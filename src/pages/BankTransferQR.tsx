@@ -1,24 +1,23 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import courtImg from "@/assets/lahore-high-court.png";
+import qrBankImage from "@/assets/QR_bank.jpeg";
 
 const BankTransferQR = () => {
-  const [bankName, setBankName] = useState("My Bank")
-  const [accountName, setAccountName] = useState("Salman Tahir")
-  const [accountNumber, setAccountNumber] = useState("1234567890")
-  const [ifsc, setIfsc] = useState("BANK0001234")
+  const [bankName, setBankName] = useState("Standard Chartered")
+  const [accountName, setAccountName] = useState("M Bilal Tahir")
+  const [accountNumber, setAccountNumber] = useState("01001001201")
+  const [iban, setIban] = useState("PK19SCBL0000001001001201")
+  const [ifsc, setIfsc] = useState("SCBL0000001") // or use actual SWIFT/IFSC as needed
   const [amount, setAmount] = useState("5000")
   const [note, setNote] = useState("Lawyer Retainer Fee")
 
   const qrText = useMemo(() => {
     // Basic bank transfer format text (for human and mobile scanner apps)
-    return `Bank name: ${bankName}\nAccount name: ${accountName}\nAccount number: ${accountNumber}\nIFSC/Swift: ${ifsc}\nAmount: ${amount}\nNote: ${note}`;
-  }, [bankName, accountName, accountNumber, ifsc, amount, note]);
+    return `Bank name: ${bankName}\nAccount name: ${accountName}\nAccount number: ${accountNumber}\nIBAN: ${iban}\nIFSC/Swift: ${ifsc}\nAmount: ${amount}\nNote: ${note}`;
+  }, [bankName, accountName, accountNumber, iban, ifsc, amount, note]);
 
-  const qrImageUrl = useMemo(() => {
-    const encoded = encodeURIComponent(qrText);
-    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encoded}`;
-  }, [qrText]);
+  const qrImageUrl = qrBankImage;
 
   return (
     <main
@@ -49,29 +48,36 @@ const BankTransferQR = () => {
             <label className="block text-sm font-medium">Bank Name</label>
             <input
               value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+              readOnly
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-slate-100"
             />
 
             <label className="block text-sm font-medium">Account Name</label>
             <input
               value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+              readOnly
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-slate-100"
             />
 
             <label className="block text-sm font-medium">Account Number</label>
             <input
               value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+              readOnly
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-slate-100"
+            />
+
+            <label className="block text-sm font-medium">IBAN</label>
+            <input
+              value={iban}
+              readOnly
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-slate-100"
             />
 
             <label className="block text-sm font-medium">IFSC / SWIFT Code</label>
             <input
               value={ifsc}
-              onChange={(e) => setIfsc(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+              readOnly
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-slate-100"
             />
 
             <label className="block text-sm font-medium">Amount</label>
