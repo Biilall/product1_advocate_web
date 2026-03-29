@@ -1,16 +1,16 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import courtImg from "@/assets/lahore-high-court.png";
-import qrBankImage from "@/assets/QR_bank.jpeg";
+import qrBankImage from "@/assets/salman_QR_Bank.jpeg";
 
 const BankTransferQR = () => {
-  const [bankName, setBankName] = useState("Standard Chartered")
-  const [accountName, setAccountName] = useState("M Bilal Tahir")
-  const [accountNumber, setAccountNumber] = useState("01001001201")
-  const [iban, setIban] = useState("PK19SCBL0000001001001201")
-  const [ifsc, setIfsc] = useState("SCBL0000001") // or use actual SWIFT/IFSC as needed
+  const [bankName, setBankName] = useState("Allied Bank")
+  const [accountName, setAccountName] = useState("M Salman Tahir")
+  const [accountNumber, setAccountNumber] = useState("0010039734470013")
+  const [iban, setIban] = useState("PK08ABPA0010039734470013")
+  const [ifsc, setIfsc] = useState("0140288") 
   const [amount, setAmount] = useState("5000")
-  const [note, setNote] = useState("Lawyer Retainer Fee")
+  const [note, setNote] = useState("Lawyer Consultation Fee")
 
   const qrText = useMemo(() => {
     // Basic bank transfer format text (for human and mobile scanner apps)
@@ -73,7 +73,7 @@ const BankTransferQR = () => {
               className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-slate-100"
             />
 
-            <label className="block text-sm font-medium">IFSC / SWIFT Code</label>
+            <label className="block text-sm font-medium">Branch Code</label>
             <input
               value={ifsc}
               readOnly

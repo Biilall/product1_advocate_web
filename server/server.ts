@@ -8,6 +8,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import gTTS from 'google-tts-api';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 import ffmpeg from 'fluent-ffmpeg';
 type ChatHistoryRow = {
@@ -82,6 +83,23 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Initialize R2 (Cloudflare) client
+const r2Client = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT || 'https://4aadb57b978e2111e10136a0ca705bb4.r2.cloudflarestorage.com',
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+  },
+  forcePathStyle: true,
+});
+
+// Test R2 connection on startup
+if (process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
+  console.log('Testing R2 connection...');
+  // We'll test this when the first file upload happens
+}
+
 // Initialize SQLite database
 const dbPath = path.join(__dirname, 'chat.db');
 const db = new Database(dbPath);
@@ -116,7 +134,69 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
-// Helper functions for Assistants API
+// Helper function to extract user information from messages
+function extractUserInfo(message: string): { name?: string; phone?: string; email?: string } {
+  const result: { name?: string; phone?: string; email?: string } = {};
+
+  // Extract phone number (supports various formats)
+  const phoneRegex = /(\+?\d{1,3}[-.\s]?)?\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})/g;
+  const phoneMatch = message.match(phoneRegex);
+  if (phoneMatch) {
+    result.phone = phoneMatch[0].replace(/[-.\s]/g, ''); // Clean up formatting
+  }
+
+  // Extract email
+  const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+  const emailMatch = message.match(emailRegex);
+  if (emailMatch) {
+    result.email = emailMatch[0];
+  }
+
+  // Extract name (look for common patterns like "my name is", "I am", "call me")
+  const namePatterns = [
+    /(?:my name is|I am|call me|this is)\s+([A-Za-z\s]+)/i,
+    /(?:name:?\s*|Name:?\s*)([A-Za-z\s]+)/i
+  ];
+
+  for (const pattern of namePatterns) {
+    const nameMatch = message.match(pattern);
+    if (nameMatch && nameMatch[1]) {
+      result.name = nameMatch[1].trim();
+      break;
+    }
+  }
+
+  return result;
+}
+
+// Helper function to update user information
+function updateUserInfo(userId: number, info: { name?: string; phone?: string; email?: string }) {
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (info.name) {
+    updates.push('name = ?');
+    values.push(info.name);
+  }
+  if (info.phone) {
+    updates.push('phone = ?');
+    values.push(info.phone);
+  }
+  if (info.email) {
+    updates.push('email = ?');
+    values.push(info.email);
+  }
+
+  if (updates.length > 0) {
+    updates.push('info_collected = TRUE');
+    values.push(userId);
+
+    const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
+    db.prepare(sql).run(...values);
+    console.log(`Updated user ${userId} with info:`, info);
+  }
+}
+
 async function getOrCreateOpenAIThread(threadId: string): Promise<string> {
   console.log(`[DEBUG] getOrCreateOpenAIThread called with threadId: ${threadId}`);
   
@@ -260,6 +340,8 @@ async function sendMessageToAssistant(
     threadId: openaiThreadId, // Return the OpenAI thread ID
   };
 }
+
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -296,6 +378,30 @@ app.get('/api/chat/history/:threadId', (req, res) => {
     res.json(history);
   } catch (error) {
     res.status(500).json({ error: 'Failed to load chat history' });
+  }
+});
+
+app.get('/api/chat/topics', (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT 
+        ch.thread_id,
+        ch.message as first_message,
+        ch.created_at,
+        COUNT(*) as message_count
+      FROM chat_history ch
+      WHERE ch.id = (
+        SELECT MIN(id) FROM chat_history WHERE thread_id = ch.thread_id
+      )
+      GROUP BY ch.thread_id
+      ORDER BY ch.created_at DESC
+      LIMIT 20
+    `);
+    const topics = stmt.all();
+    res.json(topics);
+  } catch (error) {
+    console.error('Failed to load chat topics:', error);
+    res.status(500).json({ error: 'Failed to load chat topics' });
   }
 });
 
@@ -380,6 +486,12 @@ app.post('/api/chat/text', async (req, res) => {
     // 4. Save using LOCAL thread
     const stmt = db.prepare('INSERT INTO chat_history (thread_id, user_id, message, response, message_type) VALUES (?, ?, ?, ?, ?)');
     stmt.run(localThreadId, userId, message, reply, 'text');
+
+    // 5. Extract and save user information if provided
+    const extractedInfo = extractUserInfo(message);
+    if (extractedInfo.name || extractedInfo.phone || extractedInfo.email) {
+      updateUserInfo(userId, extractedInfo);
+    }
 
     res.json({
     response: reply,
@@ -515,6 +627,12 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
     db.prepare('INSERT INTO chat_history (thread_id, user_id, message, response, message_type) VALUES (?, ?, ?, ?, ?)')
       .run(localThreadId, userId, userMessage, assistantText, 'voice');
 
+    // Extract and save user information if provided in voice message
+    const extractedInfo = extractUserInfo(userMessage);
+    if (extractedInfo.name || extractedInfo.phone || extractedInfo.email) {
+      updateUserInfo(userId, extractedInfo);
+    }
+
     // Generate audio for assistant reply (optional)
     let responseAudio = null;
     try {
@@ -538,6 +656,250 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
     console.error(err);
     try { fs.unlinkSync(audioFile.path); } catch {}
     res.status(500).json({ error: err instanceof Error ? err.message : 'Voice processing failed' });
+  }
+});
+
+app.post('/api/chat/file', upload.single('file'), async (req, res) => {
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: 'No file provided' });
+
+  const message = req.body.message || '';
+  let localThreadId = req.body.threadId;
+
+  try {
+    if (!localThreadId || localThreadId === 'undefined') {
+      localThreadId = `thread_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    }
+
+    let userResult = db.prepare('SELECT ch.user_id FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get(localThreadId) as { user_id: number } | undefined;
+    let userId;
+    if (!userResult) {
+      const newUser = db.prepare('INSERT INTO users DEFAULT VALUES').run();
+      userId = newUser.lastInsertRowid as number;
+    } else {
+      userId = userResult.user_id;
+    }
+
+    // Upload file to R2
+    const fileKey = `${Date.now()}-${file.originalname}`;
+    const fileBuffer = fs.readFileSync(file.path);
+    
+    console.log('Uploading to R2:', {
+      endpoint: process.env.R2_ENDPOINT,
+      key: fileKey,
+      size: fileBuffer.length
+    });
+    
+    const uploadCommand = new PutObjectCommand({
+      Bucket: 'files',
+      Key: fileKey,
+      Body: fileBuffer,
+      ContentType: file.mimetype,
+    });
+
+    try {
+      await r2Client.send(uploadCommand);
+      console.log('R2 upload successful');
+    } catch (r2Error: any) {
+      console.error('R2 upload failed:', {
+        message: r2Error.message,
+        code: r2Error.Code || r2Error.code,
+        statusCode: r2Error.$metadata?.httpStatusCode,
+        endpoint: process.env.R2_ENDPOINT,
+        accessKey: process.env.R2_ACCESS_KEY_ID ? '***' + process.env.R2_ACCESS_KEY_ID.slice(-4) : 'NOT SET',
+        bucket: 'files'
+      });
+      throw new Error(`R2 upload failed: ${r2Error.message || 'Unknown error'}`);
+    }
+    
+    // Generate public URL using the Public Development URL
+    const publicUrl = 'https://pub-9ff01b45329e47fea09f93ac74602856.r2.dev';
+    const fileUrl = `${publicUrl}/${fileKey}`;
+    console.log('Generated file URL:', fileUrl);
+
+    const openaiThreadId = await getOrCreateOpenAIThread(localThreadId);
+
+    // Add message with file URL
+    const msgRes = await fetch(
+      `https://api.openai.com/v1/threads/${openaiThreadId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+          "OpenAI-Beta": "assistants=v2",
+        },
+        body: JSON.stringify({
+          role: "user",
+          content: message ? `${message}\n\nFile: ${fileUrl}` : `Please analyze this file: ${fileUrl}`,
+        }),
+      }
+    );
+
+    if (!msgRes.ok) {
+      const err = await msgRes.json();
+      throw new Error(`Add message failed: ${JSON.stringify(err)}`);
+    }
+
+    // Run assistant
+    const runRes = await fetch(
+      `https://api.openai.com/v1/threads/${openaiThreadId}/runs`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+          "OpenAI-Beta": "assistants=v2",
+        },
+        body: JSON.stringify({
+          assistant_id: ASSISTANT_ID,
+        }),
+      }
+    );
+
+    const runData = await runRes.json();
+
+    if (!runRes.ok || !runData.id) {
+      throw new Error(`Run failed: ${JSON.stringify(runData)}`);
+    }
+
+    let runStatus = runData.status;
+    const runId = runData.id;
+
+    // Poll for completion
+    while (runStatus === 'queued' || runStatus === 'in_progress') {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const statusRes = await fetch(
+        `https://api.openai.com/v1/threads/${openaiThreadId}/runs/${runId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            "OpenAI-Beta": "assistants=v2",
+          },
+        }
+      );
+      const statusData = await statusRes.json();
+      runStatus = statusData.status;
+    }
+
+    if (runStatus !== 'completed') {
+      throw new Error(`Run failed with status: ${runStatus}`);
+    }
+
+    // Get messages
+    const messagesRes = await fetch(
+      `https://api.openai.com/v1/threads/${openaiThreadId}/messages`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "OpenAI-Beta": "assistants=v2",
+        },
+      }
+    );
+
+    const messagesData = await messagesRes.json();
+    const assistantMessage = messagesData.data.find((msg: any) => msg.role === 'assistant');
+    const assistantText = assistantMessage?.content?.[0]?.text?.value || 'No response';
+
+    // Save to DB
+    db.prepare('INSERT INTO chat_history (thread_id, user_id, message, response, message_type) VALUES (?, ?, ?, ?, ?)')
+      .run(localThreadId, userId, `${message} [File: ${fileUrl}]`, assistantText, 'file');
+
+    // Extract and save user information if provided in the message
+    if (message) {
+      const extractedInfo = extractUserInfo(message);
+      if (extractedInfo.name || extractedInfo.phone || extractedInfo.email) {
+        updateUserInfo(userId, extractedInfo);
+      }
+    }
+
+    // Check if user has provided contact info
+    const userInfo = db.prepare('SELECT phone, email FROM users WHERE id = ?').get(userId) as UserRow;
+    let responseMessage = 'We have your files now, let us analyze and get back to you soon.';
+
+    if (!userInfo || (!userInfo.phone && !userInfo.email)) {
+      responseMessage += '\n\nTo follow up regarding this case, please provide your phone number or email address.';
+    }
+
+    // Clean up local file
+    try { fs.unlinkSync(file.path); } catch {}
+
+    res.json({
+      response: responseMessage,
+      threadId: localThreadId,
+    });
+  } catch (err) {
+    console.error(err);
+    try { fs.unlinkSync(file.path); } catch {}
+    res.status(500).json({ error: err instanceof Error ? err.message : 'File processing failed' });
+  }
+});
+
+
+// Password authentication middleware
+function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers.authorization;
+  const dashboardPassword = process.env.DASHBOARD_PASSWORD || 'admin123'; // Default password, should be set in .env
+
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Dashboard"');
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const base64Credentials = authHeader.split(' ')[1];
+  const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+  const [username, password] = credentials.split(':');
+
+  if (password !== dashboardPassword) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  next();
+}
+
+// API routes for dashboard data
+app.get('/api/dashboard/stats', requireAuth, (req, res) => {
+  try {
+    const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    const totalChats = db.prepare('SELECT COUNT(*) as count FROM chat_history').get().count;
+    const totalThreads = db.prepare('SELECT COUNT(*) as count FROM threads').get().count;
+    const infoCollected = db.prepare('SELECT COUNT(*) as count FROM users WHERE info_collected = TRUE').get().count;
+
+    res.json({
+      totalUsers,
+      totalChats,
+      totalThreads,
+      infoCollected
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+app.get('/api/dashboard/users', requireAuth, (req, res) => {
+  try {
+    const users = db.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.get('/api/dashboard/chats', requireAuth, (req, res) => {
+  try {
+    const chats = db.prepare('SELECT * FROM chat_history ORDER BY created_at DESC LIMIT 100').all();
+    res.json(chats);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch chats' });
+  }
+});
+
+app.get('/api/dashboard/threads', requireAuth, (req, res) => {
+  try {
+    const threads = db.prepare('SELECT * FROM threads ORDER BY created_at DESC').all();
+    res.json(threads);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch threads' });
   }
 });
 

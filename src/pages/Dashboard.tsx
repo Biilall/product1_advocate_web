@@ -1,0 +1,402 @@
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Users, MessageSquare, Hash, UserCheck, RefreshCw } from "lucide-react";
+
+interface User {
+  id: number;
+  name?: string;
+  phone?: string;
+  email?: string;
+  info_collected: boolean;
+  created_at: string;
+}
+
+interface Chat {
+  id: number;
+  thread_id: string;
+  user_id?: number;
+  message?: string;
+  response?: string;
+  message_type: string;
+  created_at: string;
+}
+
+interface Stats {
+  totalUsers: number;
+  totalChats: number;
+  totalThreads: number;
+  infoCollected: number;
+}
+
+const Dashboard = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Dialog state for user chat history
+  const [selectedUserChats, setSelectedUserChats] = useState<Chat[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [isUserChatHistoryOpen, setIsUserChatHistoryOpen] = useState(false);
+
+  const dashboardPassword = "admin123"; // In production, this should come from env
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === dashboardPassword) {
+      setIsAuthenticated(true);
+      setError("");
+      loadDashboardData();
+    } else {
+      setError("Invalid password");
+    }
+  };
+
+  const loadDashboardData = async () => {
+    setLoading(true);
+    try {
+      const [statsRes, usersRes, chatsRes] = await Promise.all([
+        fetch(`/api/dashboard/stats?password=${dashboardPassword}`),
+        fetch(`/api/dashboard/users?password=${dashboardPassword}`),
+        fetch(`/api/dashboard/chats?password=${dashboardPassword}`)
+      ]);
+
+      if (!statsRes.ok || !usersRes.ok || !chatsRes.ok) {
+        throw new Error("Failed to fetch data");
+      }
+
+      const statsData = await statsRes.json();
+      const usersData = await usersRes.json();
+      const chatsData = await chatsRes.json();
+
+      setStats(statsData);
+      setUsers(usersData);
+      setChats(chatsData);
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+      setError("Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setPassword("");
+    setStats(null);
+    setUsers([]);
+    setChats([]);
+  };
+
+  // Group chats by user and get last message for each user
+  const getGroupedChatsByUser = () => {
+    const userGroups: { [key: number]: Chat[] } = {};
+
+    chats.forEach(chat => {
+      if (chat.user_id) {
+        if (!userGroups[chat.user_id]) {
+          userGroups[chat.user_id] = [];
+        }
+        userGroups[chat.user_id].push(chat);
+      }
+    });
+
+    // Get last message for each user
+    return Object.entries(userGroups).map(([userId, userChats]) => {
+      const sortedChats = userChats.sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      const lastChat = sortedChats[0];
+      const user = users.find(u => u.id === parseInt(userId));
+
+      return {
+        userId: parseInt(userId),
+        user,
+        lastChat,
+        totalChats: userChats.length,
+        allChats: sortedChats.reverse() // chronological order for dialog
+      };
+    });
+  };
+
+  const handleUserRowClick = (userId: number) => {
+    const userChats = chats
+      .filter(chat => chat.user_id === userId)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    setSelectedUserChats(userChats);
+    setSelectedUserId(userId);
+    setIsUserChatHistoryOpen(true);
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-center">Dashboard Login</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  required
+                />
+              </div>
+              {error && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Logging in..." : "Login"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Chat Dashboard</h1>
+            <p className="text-gray-600">Database overview and analytics</p>
+          </div>
+          <div className="flex gap-4">
+            <Button onClick={loadDashboardData} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button variant="outline" onClick={handleLogout}>
+              Logout
+            </Button>
+            <Link to="/">
+              <Button variant="outline">Back to Home</Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalUsers}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Chats</CardTitle>
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalChats}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Active Threads</CardTitle>
+                <Hash className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalThreads}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Info Collected</CardTitle>
+                <UserCheck className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.infoCollected}</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Users Table */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Users</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Info Collected</TableHead>
+                  <TableHead>Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>{user.id}</TableCell>
+                    <TableCell>{user.name || '-'}</TableCell>
+                    <TableCell>{user.phone || '-'}</TableCell>
+                    <TableCell>{user.email || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.info_collected ? "default" : "secondary"}>
+                        {user.info_collected ? "Yes" : "No"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(user.created_at).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Recent Chats Table - Grouped by User */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Chat History</CardTitle>
+            <p className="text-sm text-gray-600">Click any user row to view their complete conversation history</p>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Last Message</TableHead>
+                  <TableHead>Total Chats</TableHead>
+                  <TableHead>Last Activity</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {getGroupedChatsByUser().map((userGroup) => (
+                  <TableRow
+                    key={userGroup.userId}
+                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => handleUserRowClick(userGroup.userId)}
+                  >
+                    <TableCell>{userGroup.userId}</TableCell>
+                    <TableCell>{userGroup.user?.name || '-'}</TableCell>
+                    <TableCell>{userGroup.user?.phone || '-'}</TableCell>
+                    <TableCell>{userGroup.user?.email || '-'}</TableCell>
+                    <TableCell className="max-w-xs truncate">
+                      {userGroup.lastChat.message ?
+                        userGroup.lastChat.message.substring(0, 50) + (userGroup.lastChat.message.length > 50 ? '...' : '') :
+                        '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{userGroup.totalChats}</Badge>
+                    </TableCell>
+                    <TableCell>{new Date(userGroup.lastChat.created_at).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* User Chat History Dialog */}
+        <Dialog open={isUserChatHistoryOpen} onOpenChange={setIsUserChatHistoryOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>User Chat History</DialogTitle>
+              {selectedUserId && (
+                <div className="text-sm text-gray-600 space-y-1">
+                  <p><strong>User ID:</strong> {selectedUserId}</p>
+                  {(() => {
+                    const user = users.find(u => u.id === selectedUserId);
+                    return user ? (
+                      <>
+                        <p><strong>Name:</strong> {user.name || 'N/A'}</p>
+                        <p><strong>Phone:</strong> {user.phone || 'N/A'}</p>
+                        <p><strong>Email:</strong> {user.email || 'N/A'}</p>
+                        <p><strong>Info Collected:</strong> <Badge variant={user.info_collected ? "default" : "secondary"}>
+                          {user.info_collected ? "Yes" : "No"}
+                        </Badge></p>
+                      </>
+                    ) : null;
+                  })()}
+                  <p><strong>Total Conversations:</strong> {selectedUserChats.length}</p>
+                </div>
+              )}
+            </DialogHeader>
+            <ScrollArea className="h-[60vh]">
+              <div className="space-y-4">
+                {selectedUserChats.map((chat, index) => (
+                  <div key={chat.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {chat.message_type}
+                        </Badge>
+                        <span className="text-xs text-gray-500">
+                          {new Date(chat.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-400">#{index + 1}</span>
+                    </div>
+
+                    {/* User Query */}
+                    <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500 mb-3">
+                      <h4 className="font-semibold text-blue-900 text-sm mb-1 flex items-center gap-2">
+                        <MessageSquare className="w-3 h-3" />
+                        User Query
+                      </h4>
+                      <div className="text-blue-800 text-sm whitespace-pre-wrap break-words">
+                        {chat.message || 'No message content'}
+                      </div>
+                    </div>
+
+                    {/* AI Response */}
+                    <div className="bg-green-50 p-3 rounded-lg border-l-4 border-green-500">
+                      <h4 className="font-semibold text-green-900 text-sm mb-1 flex items-center gap-2">
+                        <Users className="w-3 h-3" />
+                        AI Response
+                      </h4>
+                      <div className="text-green-800 text-sm whitespace-pre-wrap break-words">
+                        {chat.response || 'No response content'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </main>
+  );
+};
+
+export default Dashboard;

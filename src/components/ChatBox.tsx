@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Mic, MicOff } from "lucide-react";
+import { MessageCircle, X, Send, Mic, MicOff, Paperclip, RotateCcw, ChevronDown } from "lucide-react";
 import salmanAvatar from "@/assets/salman-avatar.png";
 
 interface Message {
@@ -26,9 +26,13 @@ const ChatBox = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showTopicsDropdown, setShowTopicsDropdown] = useState(false);
+  const [chatTopics, setChatTopics] = useState<any[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -37,6 +41,18 @@ const ChatBox = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showTopicsDropdown && !(event.target as Element).closest('.chat-topics-dropdown')) {
+        setShowTopicsDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showTopicsDropdown]);
 
   // Initialize user
   useEffect(() => {
@@ -103,16 +119,17 @@ const ChatBox = () => {
   };
 
   const sendTextMessage = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() && !selectedFile) return;
 
-    const userMsg: Message = { role: "user", text };
+    const userMsg: Message = { role: "user", text: selectedFile ? `File: ${selectedFile.name}` : text };
     setMessages((prev) => [...prev, userMsg]);
 
     const special = getSpecialResponse(text);
-    if (special) {
+    if (special && !selectedFile) {
       const assistantMsg: Message = { role: "assistant", text: special };
       setMessages((prev) => [...prev, assistantMsg]);
       setInput("");
+      setSelectedFile(null);
       return;
     }
 
@@ -120,17 +137,32 @@ const ChatBox = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat/text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId, message: text }),
-      });
+      let response;
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('threadId', threadId || '');
+        formData.append('message', text);
+        formData.append('file', selectedFile);
+
+        response = await fetch('/api/chat/file', {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        response = await fetch('/api/chat/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ threadId, message: text }),
+        });
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
         const errorMsg: Message = { role: "assistant", text: data.error || 'Failed...' };
         setMessages((prev) => [...prev, errorMsg]);
         setIsLoading(false);
+        setSelectedFile(null);
         return;
       }
 
@@ -154,6 +186,7 @@ const ChatBox = () => {
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+      setSelectedFile(null);
     }
   };
 
@@ -255,6 +288,20 @@ const send = () => {
     sendTextMessage(input);
   };
 
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const toggleRecording = () => {
     if (isRecording) {
       stopRecording();
@@ -266,6 +313,78 @@ const send = () => {
   const handleOpen = () => {
     setOpen(true);
     setUnreadCount(0);
+  };
+
+  const startNewChat = async () => {
+    // Clear current chat
+    setMessages([]);
+    setInput("");
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    
+    // Remove current thread from localStorage
+    localStorage.removeItem('chatThreadId');
+    
+    // Start new session
+    try {
+      const response = await fetch('/api/chat/start', {
+        method: 'POST',
+      });
+      const data = await response.json();
+      const newThreadId = data.threadId;
+      localStorage.setItem('chatThreadId', newThreadId);
+      setThreadId(newThreadId);
+      
+      // Start with welcome message
+      setMessages([{ role: "assistant", text: "Assalam-o-Alaikum! I am M Salman Tahir, a legal expert. To better assist you, could you please share your name, phone number, and email address?" }]);
+    } catch (error) {
+      console.error('Failed to create new session:', error);
+      setMessages([{ role: "assistant", text: "Assalam-o-Alaikum. I am M Salman Tahir. How may I assist you today?" }]);
+    }
+  };
+
+  const fetchChatTopics = async () => {
+    try {
+      const response = await fetch('/api/chat/topics');
+      const topics = await response.json();
+      setChatTopics(topics);
+    } catch (error) {
+      console.error('Failed to fetch chat topics:', error);
+    }
+  };
+
+  const loadChatTopic = async (topicThreadId: string) => {
+    try {
+      // Load history for this thread
+      const response = await fetch(`/api/chat/history/${topicThreadId}`);
+      const history: ChatHistory[] = await response.json();
+      
+      const loadedMessages: Message[] = [];
+      history.forEach(h => {
+        loadedMessages.push({ role: 'user', text: h.message, type: h.message_type as 'text' | 'voice' });
+        loadedMessages.push({ role: 'assistant', text: h.response || '' });
+      });
+      
+      if (loadedMessages.length === 0) {
+        loadedMessages.push({ role: "assistant", text: "Assalam-o-Alaikum! I am M Salman Tahir, a legal expert. To better assist you, could you please share your name, phone number, and email address?" });
+      }
+      
+      setMessages(loadedMessages);
+      setThreadId(topicThreadId);
+      localStorage.setItem('chatThreadId', topicThreadId);
+      setShowTopicsDropdown(false);
+    } catch (error) {
+      console.error('Failed to load chat topic:', error);
+    }
+  };
+
+  const toggleTopicsDropdown = () => {
+    setShowTopicsDropdown(!showTopicsDropdown);
+    if (!showTopicsDropdown) {
+      fetchChatTopics();
+    }
   };
 
   const renderMessageText = (text?: string) => {
@@ -339,6 +458,53 @@ const send = () => {
             </button>
           </div>
 
+          {/* New Chat Option */}
+          <div className="px-4 py-2 border-b border-border bg-muted/50 relative chat-topics-dropdown">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={startNewChat}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Start new chat"
+              >
+                <RotateCcw size={14} />
+                New Chat
+              </button>
+              <button
+                onClick={toggleTopicsDropdown}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Show chat history"
+              >
+                <ChevronDown size={14} className={`transform transition-transform ${showTopicsDropdown ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            
+            {/* Chat Topics Dropdown */}
+            {showTopicsDropdown && (
+              <div className="absolute top-full left-0 right-0 bg-background border border-border rounded-b-md shadow-lg z-10 max-h-48 overflow-y-auto">
+                {chatTopics.length > 0 ? (
+                  chatTopics.map((topic) => (
+                    <button
+                      key={topic.thread_id}
+                      onClick={() => loadChatTopic(topic.thread_id)}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-muted transition-colors border-b border-border/50 last:border-b-0"
+                    >
+                      <div className="truncate text-muted-foreground">
+                        {topic.first_message?.substring(0, 50) || 'New conversation'}...
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {new Date(topic.created_at).toLocaleDateString()} • {topic.message_count} messages
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-2 text-sm text-muted-foreground">
+                    No previous conversations
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[14rem]">
             {messages.map((msg, i) => (
               <div
@@ -355,49 +521,81 @@ const send = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t border-border flex items-center">
-            {!isRecording && !isLoading && (
+          <div className="border-t border-border flex flex-col">
+            {selectedFile && (
+              <div className="px-4 py-2 flex items-center gap-2 bg-muted">
+                <Paperclip size={14} />
+                <span className="font-sans text-sm flex-1 truncate">{selectedFile.name}</span>
+                <button
+                  onClick={removeFile}
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label="Remove file"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+            <div className="flex items-center">
+              {!isRecording && !isLoading && (
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !isLoading && send()}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-3 bg-transparent font-sans text-sm outline-none placeholder:text-muted-foreground"
+                  disabled={isLoading}
+                />
+              )}
+              {isRecording && (
+                <div className="flex-1 px-4 py-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="font-sans text-sm text-muted-foreground">Recording...</span>
+                </div>
+              )}
+              {isLoading && !isRecording && (
+                <div className="flex-1 px-4 py-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                  <span className="font-sans text-sm text-muted-foreground">Thinking...</span>
+                </div>
+              )}
               <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !isLoading && send()}
-                placeholder="Type a message..."
-                className="flex-1 px-4 py-3 bg-transparent font-sans text-sm outline-none placeholder:text-muted-foreground"
-                disabled={isLoading}
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                className="hidden"
+                accept="*/*"
               />
-            )}
-            {isRecording && (
-              <div className="flex-1 px-4 py-3 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="font-sans text-sm text-muted-foreground">Recording...</span>
-              </div>
-            )}
-            {isLoading && !isRecording && (
-              <div className="flex-1 px-4 py-3 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <span className="font-sans text-sm text-muted-foreground">Thinking...</span>
-              </div>
-            )}
-            <button
-              onClick={toggleRecording}
-              disabled={isLoading}
-              className={`px-2 transition-colors ${
-                isRecording ? "text-red-500" : "text-muted-foreground hover:text-foreground"
-              } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-              aria-label={isRecording ? "Stop recording" : "Voice input"}
-            >
-              {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
-            </button>
-            <button
-              onClick={send}
-              disabled={isLoading || !input.trim()}
-              className={`px-4 transition-colors ${
-                isLoading || !input.trim() ? "text-muted-foreground opacity-50 cursor-not-allowed" : "text-muted-foreground hover:text-foreground"
-              }`}
-              aria-label="Send"
-            >
-              <Send size={16} />
-            </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading || isRecording}
+                className={`px-2 transition-colors ${
+                  isLoading || isRecording ? "text-muted-foreground opacity-50 cursor-not-allowed" : "text-muted-foreground hover:text-foreground"
+                }`}
+                aria-label="Attach file"
+              >
+                <Paperclip size={16} />
+              </button>
+              <button
+                onClick={toggleRecording}
+                disabled={isLoading}
+                className={`px-2 transition-colors ${
+                  isRecording ? "text-red-500" : "text-muted-foreground hover:text-foreground"
+                } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                aria-label={isRecording ? "Stop recording" : "Voice input"}
+              >
+                {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
+              <button
+                onClick={send}
+                disabled={isLoading || (!input.trim() && !selectedFile)}
+                className={`px-4 transition-colors ${
+                  isLoading || (!input.trim() && !selectedFile) ? "text-muted-foreground opacity-50 cursor-not-allowed" : "text-muted-foreground hover:text-foreground"
+                }`}
+                aria-label="Send"
+              >
+                <Send size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
