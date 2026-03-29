@@ -108,7 +108,7 @@ const ChatBox = () => {
     const bankTransferTrigger = /bank transfer|bank details|bank account|ifsc|swift|account number/i;
 
     if (paymentMethodsTrigger.test(normalized)) {
-      return "JazzCash Number: 0306-5234137";
+      return "JazzCash Number: 0300-6829799";
     }
 
     if (bankTransferTrigger.test(normalized)) {
