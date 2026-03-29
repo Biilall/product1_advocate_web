@@ -860,11 +860,17 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
 // API routes for dashboard data
 app.get('/api/dashboard/stats', requireAuth, (req, res) => {
   try {
-    const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-    const totalChats = db.prepare('SELECT COUNT(*) as count FROM chat_history').get().count;
-    const totalThreads = db.prepare('SELECT COUNT(*) as count FROM threads').get().count;
-    const infoCollected = db.prepare('SELECT COUNT(*) as count FROM users WHERE info_collected = TRUE').get().count;
+    // const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    // const totalChats = db.prepare('SELECT COUNT(*) as count FROM chat_history').get().count;
+    // const totalThreads = db.prepare('SELECT COUNT(*) as count FROM threads').get().count;
+    // const infoCollected = db.prepare('SELECT COUNT(*) as count FROM users WHERE info_collected = TRUE').get().count;
+    const totalUsers = (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
 
+    const totalChats = (db.prepare('SELECT COUNT(*) as count FROM chat_history').get() as { count: number }).count;
+
+    const totalThreads = (db.prepare('SELECT COUNT(*) as count FROM threads').get() as { count: number }).count;
+
+    const infoCollected = (db.prepare('SELECT COUNT(*) as count FROM users WHERE info_collected = TRUE').get() as { count: number }).count;
     res.json({
       totalUsers,
       totalChats,
