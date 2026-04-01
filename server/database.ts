@@ -1,7 +1,7 @@
-import { MongoClient, Db, Collection } from 'mongodb';
+import { MongoClient, Db, Collection, ObjectId } from 'mongodb';
 
 export interface User {
-  _id?: string;
+  _id?: ObjectId;
   name?: string;
   phone?: string;
   email?: string;
@@ -10,18 +10,18 @@ export interface User {
 }
 
 export interface ChatHistory {
-  _id?: string;
+  _id?: ObjectId;
   threadId: string;
   userId: string; // MongoDB ObjectId as string
   message: string;
   response: string;
-  messageType: 'text' | 'voice';
+  messageType: 'text' | 'voice' | 'file';
   userInfoExtracted?: string; // JSON string
   createdAt: Date;
 }
 
 export interface Thread {
-  _id?: string;
+  _id?: ObjectId;
   threadId: string;
   openaiThreadId: string;
   createdAt: Date;
@@ -34,9 +34,9 @@ class Database {
   private mongoUrl: string;
 
   // Collections
-  public users: Collection<User>;
-  public chatHistory: Collection<ChatHistory>;
-  public threads: Collection<Thread>;
+  public users!: Collection<User>;
+  public chatHistory!: Collection<ChatHistory>;
+  public threads!: Collection<Thread>;
 
   constructor() {
     this.mongoUrl = process.env.MONGODB_URI || process.env.MONGODB_URL || 'mongodb://REDACTED_USER:REDACTED_PASSWORD@127.0.0.1:27017/law_nexus_chat?authSource=admin';
