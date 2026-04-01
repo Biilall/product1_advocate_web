@@ -2,33 +2,34 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import OpenAI from 'openai';
-import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import gTTS from 'google-tts-api';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-
 import ffmpeg from 'fluent-ffmpeg';
+
+// Import MongoDB operations
+import { initializeDatabase, createUser, getOrCreateUserForThread, createChatHistory, getThreadByThreadId, createThread, getAllUsers, getRecentChatHistory, getAllThreads, getDashboardStats, getChatTopics, getChatHistoryByThread } from './db-operations.js';
 type ChatHistoryRow = {
-  id: number;
-  thread_id: string;
-  user_id: number;
+  _id: string;
+  threadId: string;
+  userId: string;
   message: string;
   response: string;
-  message_type: string;
-  user_info_extracted?: string;
-  created_at: string;
+  messageType: string;
+  userInfoExtracted?: string;
+  createdAt: Date;
 };
 
 type UserRow = {
-  id: number;
+  _id: string;
   name?: string;
   phone?: string;
   email?: string;
-  info_collected?: boolean;
-  created_at: string;
+  infoCollected?: boolean;
+  createdAt: Date;
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -100,40 +101,10 @@ if (process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
   // We'll test this when the first file upload happens
 }
 
-// Initialize SQLite database
-const dbPath = path.join(__dirname, 'chat.db');
-const db = new Database(dbPath);
-
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    phone TEXT,
-    email TEXT,
-    info_collected BOOLEAN DEFAULT FALSE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS chat_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    thread_id TEXT NOT NULL,
-    user_id INTEGER,
-    message TEXT,
-    response TEXT,
-    message_type TEXT DEFAULT 'text', -- 'text' or 'voice'
-    user_info_extracted TEXT, -- JSON string of extracted user info
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users (id)
-  );
-
-  CREATE TABLE IF NOT EXISTS threads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    thread_id TEXT NOT NULL UNIQUE,
-    openai_thread_id TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-`);
+// Initialize MongoDB database
+console.log('Initializing MongoDB connection...');
+await initializeDatabase();
+console.log('✅ MongoDB initialized successfully');
 // Helper function to extract user information from messages
 function extractUserInfo(message: string): { name?: string; phone?: string; email?: string } {
   const result: { name?: string; phone?: string; email?: string } = {};
@@ -170,59 +141,45 @@ function extractUserInfo(message: string): { name?: string; phone?: string; emai
 }
 
 // Helper function to update user information
-function updateUserInfo(userId: number, info: { name?: string; phone?: string; email?: string }) {
-  const updates: string[] = [];
-  const values: any[] = [];
+async function updateUserInfo(userId: string, info: { name?: string; phone?: string; email?: string }) {
+  const updates: any = {};
 
-  if (info.name) {
-    updates.push('name = ?');
-    values.push(info.name);
-  }
-  if (info.phone) {
-    updates.push('phone = ?');
-    values.push(info.phone);
-  }
-  if (info.email) {
-    updates.push('email = ?');
-    values.push(info.email);
-  }
+  if (info.name) updates.name = info.name;
+  if (info.phone) updates.phone = info.phone;
+  if (info.email) updates.email = info.email;
 
-  if (updates.length > 0) {
-    updates.push('info_collected = TRUE');
-    values.push(userId);
-
-    const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
-    db.prepare(sql).run(...values);
-    console.log(`Updated user ${userId} with info:`, info);
+  if (Object.keys(updates).length > 0) {
+    updates.infoCollected = true;
+    await import('./db-operations.js').then(({ updateUserInfo: updateUser }) => updateUser(userId, info));
   }
 }
 
 async function getOrCreateOpenAIThread(threadId: string): Promise<string> {
   console.log(`[DEBUG] getOrCreateOpenAIThread called with threadId: ${threadId}`);
-  
+
   try {
     logDebug(`[getOrCreateOpenAIThread] Called with threadId: ${threadId}`);
-    
+
     // Check if we already have an OpenAI thread ID for this threadId
     console.log(`[DEBUG] Executing database query for threadId: ${threadId}`);
-    const existingThread = db.prepare('SELECT openai_thread_id FROM threads WHERE thread_id = ?').get(threadId) as any;
+    const existingThread = await getThreadByThreadId(threadId);
     console.log(`[DEBUG] Database query result type: ${typeof existingThread}`);
     console.log(`[DEBUG] Database query result:`, existingThread);
     logDebug(`[getOrCreateOpenAIThread] Database query result: ${JSON.stringify(existingThread)}`);
-    
-    if (existingThread && existingThread.openai_thread_id) {
-      console.log(`[DEBUG] Found existing thread: ${existingThread.openai_thread_id}`);
-      logDebug(`[getOrCreateOpenAIThread] Using existing OpenAI thread: ${existingThread.openai_thread_id}`);
-      return existingThread.openai_thread_id;
+
+    if (existingThread && existingThread.openaiThreadId) {
+      console.log(`[DEBUG] Found existing thread: ${existingThread.openaiThreadId}`);
+      logDebug(`[getOrCreateOpenAIThread] Using existing OpenAI thread: ${existingThread.openaiThreadId}`);
+      return existingThread.openaiThreadId;
     }
-    
+
     console.log(`[DEBUG] No existing thread found, creating new one`);
     logDebug(`[getOrCreateOpenAIThread] Creating new OpenAI thread for threadId: ${threadId}`);
-    
+
     // For testing, return a hardcoded thread ID
     console.log(`[DEBUG] Returning hardcoded thread ID for testing`);
     // return 'thread_test123';
-    
+
     // Create a new OpenAI thread
     const thread = await openai.beta.threads.create();
     if (!thread || !thread.id) {
@@ -230,12 +187,16 @@ async function getOrCreateOpenAIThread(threadId: string): Promise<string> {
     }
     console.log(`[DEBUG] Created OpenAI thread: ${thread.id}`);
     logDebug(`[getOrCreateOpenAIThread] New OpenAI thread created: ${thread.id}`);
-    
+
     // Store the mapping
     console.log(`[DEBUG] Storing thread mapping: ${threadId} -> ${thread.id}`);
-    db.prepare('INSERT INTO threads (thread_id, openai_thread_id) VALUES (?, ?)').run(threadId, thread.id);
+    await createThread({
+      threadId,
+      openaiThreadId: thread.id,
+      createdAt: new Date()
+    });
     logDebug(`[getOrCreateOpenAIThread] Stored thread mapping: ${threadId} -> ${thread.id}`);
-    
+
     console.log(`[DEBUG] Returning new thread ID: ${thread.id}`);
     return thread.id;
   } catch (error) {
@@ -366,38 +327,61 @@ if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
 }
 
-// API Routes
+// Test endpoint to verify MongoDB connection
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const stats = await getDashboardStats();
+    const recentChats = await getRecentChatHistory(5);
 
-// Get chat history for a thread
-app.get('/api/chat/history/:threadId', (req, res) => {
+    res.json({
+      status: 'MongoDB connected successfully',
+      stats,
+      recentChatsCount: recentChats.length,
+      sampleChat: recentChats[0] ? {
+        threadId: recentChats[0].threadId,
+        message: recentChats[0].message.substring(0, 50) + '...',
+        createdAt: recentChats[0].createdAt
+      } : null
+    });
+  } catch (error) {
+    console.error('Database test failed:', error);
+    res.status(500).json({
+      status: 'Database connection failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+app.get('/api/chat/history/:threadId', async (req, res) => {
   const { threadId } = req.params;
 
   try {
-    const stmt = db.prepare('SELECT * FROM chat_history WHERE thread_id = ? ORDER BY created_at ASC');
-    const history = stmt.all(threadId);
-    res.json(history);
+    console.log(`[API] Loading chat history for thread: ${threadId}`);
+    const history = await getChatHistoryByThread(threadId);
+    console.log(`[API] Found ${history.length} messages for thread ${threadId}`);
+
+    // Transform MongoDB documents to match expected format
+    const transformedHistory = history.map((chat, index) => ({
+      id: index + 1, // Use sequential ID for frontend compatibility
+      thread_id: chat.threadId,
+      user_id: chat.userId, // Keep as string, frontend might need to handle this
+      message: chat.message,
+      response: chat.response,
+      message_type: chat.messageType,
+      user_info_extracted: chat.userInfoExtracted,
+      created_at: chat.createdAt
+    }));
+
+    res.json(transformedHistory);
   } catch (error) {
+    console.error('Error loading chat history:', error);
     res.status(500).json({ error: 'Failed to load chat history' });
   }
 });
 
-app.get('/api/chat/topics', (req, res) => {
+app.get('/api/chat/topics', async (req, res) => {
   try {
-    const stmt = db.prepare(`
-      SELECT 
-        ch.thread_id,
-        ch.message as first_message,
-        ch.created_at,
-        COUNT(*) as message_count
-      FROM chat_history ch
-      WHERE ch.id = (
-        SELECT MIN(id) FROM chat_history WHERE thread_id = ch.thread_id
-      )
-      GROUP BY ch.thread_id
-      ORDER BY ch.created_at DESC
-      LIMIT 20
-    `);
-    const topics = stmt.all();
+    const topics = await getChatTopics(20);
+    console.log(`[API] Found ${topics.length} chat topics`);
     res.json(topics);
   } catch (error) {
     console.error('Failed to load chat topics:', error);
@@ -406,15 +390,14 @@ app.get('/api/chat/topics', (req, res) => {
 });
 
 // Create new user and thread
-app.post('/api/chat/start', (req, res) => {
+app.post('/api/chat/start', async (req, res) => {
   try {
-    const stmt = db.prepare('INSERT INTO users DEFAULT VALUES');
-    const result = stmt.run();
-    const userId = result.lastInsertRowid;
+    const userId = await createUser();
     const threadId = `thread_${Date.now()}_${userId}`;
 
     res.json({ userId, threadId });
   } catch (error) {
+    console.error('Error creating user session:', error);
     res.status(500).json({ error: 'Failed to create user session' });
   }
 });
@@ -426,22 +409,18 @@ app.post('/api/chat/text', async (req, res) => {
   console.log(`ThreadId: ${threadId}, Message: ${message}`);
   console.log('Full request body:', JSON.stringify(req.body, null, 2));
   logDebug(`[POST /api/chat/text] Received request. ThreadId: ${threadId}, Message length: ${message?.length}`);
-  type UserQueryResult = { user_id: number; info_collected?: boolean };
+  type UserQueryResult = { userId: string; isNew: boolean };
   try {
     // Get or create user for this thread
-    let userResult = db.prepare('SELECT ch.user_id, u.info_collected FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get(threadId) as UserQueryResult | undefined;
+    const userResult = await getOrCreateUserForThread(threadId);
     console.log('User result:', userResult);
 
-    let userId;
+    const userId = userResult.userId;
 
-    if (!userResult) {
-      // Create new user for this thread
-      const newUser = db.prepare('INSERT INTO users DEFAULT VALUES').run();
-      userId = newUser.lastInsertRowid as number;
+    if (userResult.isNew) {
       console.log(`Created new user. UserId: ${userId}`);
       logDebug(`[POST /api/chat/text] Created new user. UserId: ${userId}`);
     } else {
-      userId = userResult.user_id;
       console.log(`Using existing user. UserId: ${userId}`);
       logDebug(`[POST /api/chat/text] Using existing user. UserId: ${userId}`);
     }
@@ -484,13 +463,19 @@ app.post('/api/chat/text', async (req, res) => {
     console.log(`[POST /api/chat/text] Got response from assistant`);
 
     // 4. Save using LOCAL thread
-    const stmt = db.prepare('INSERT INTO chat_history (thread_id, user_id, message, response, message_type) VALUES (?, ?, ?, ?, ?)');
-    stmt.run(localThreadId, userId, message, reply, 'text');
+    await createChatHistory({
+      threadId: localThreadId,
+      userId,
+      message,
+      response: reply,
+      messageType: 'text',
+      createdAt: new Date()
+    });
 
     // 5. Extract and save user information if provided
     const extractedInfo = extractUserInfo(message);
     if (extractedInfo.name || extractedInfo.phone || extractedInfo.email) {
-      updateUserInfo(userId, extractedInfo);
+      await updateUserInfo(userId, extractedInfo);
     }
 
     res.json({
@@ -599,7 +584,7 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
     } else if (feeStructureTrigger.test(normalized)) {
       assistantText = process.env.QUICK_REPLIES 
     }
-    type VoiceUserQueryResult = { user_id: number };
+    type VoiceUserQueryResult = { userId: string; isNew: boolean };
 
     // Get or create user/thread records in DB
     let localThreadId = req.body.threadId;
@@ -607,14 +592,8 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
       localThreadId = `thread_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
     }
 
-    let userResult = db.prepare('SELECT ch.user_id FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get(localThreadId) as VoiceUserQueryResult | undefined;
-    let userId;
-    if (!userResult) {
-      const newUser = db.prepare('INSERT INTO users DEFAULT VALUES').run();
-      userId = newUser.lastInsertRowid as number;
-    } else {
-      userId = userResult.user_id;
-    }
+    const userResult = await getOrCreateUserForThread(localThreadId);
+    const userId = userResult.userId;
 
     // If no special answer, call assistant normally
     if (!assistantText) {
@@ -624,13 +603,19 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
     }
 
     // Save conversation to DB
-    db.prepare('INSERT INTO chat_history (thread_id, user_id, message, response, message_type) VALUES (?, ?, ?, ?, ?)')
-      .run(localThreadId, userId, userMessage, assistantText, 'voice');
+    await createChatHistory({
+      threadId: localThreadId,
+      userId,
+      message: userMessage,
+      response: assistantText,
+      messageType: 'voice',
+      createdAt: new Date()
+    });
 
     // Extract and save user information if provided in voice message
     const extractedInfo = extractUserInfo(userMessage);
     if (extractedInfo.name || extractedInfo.phone || extractedInfo.email) {
-      updateUserInfo(userId, extractedInfo);
+      await updateUserInfo(userId, extractedInfo);
     }
 
     // Generate audio for assistant reply (optional)
@@ -671,14 +656,8 @@ app.post('/api/chat/file', upload.single('file'), async (req, res) => {
       localThreadId = `thread_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
     }
 
-    let userResult = db.prepare('SELECT ch.user_id FROM chat_history ch JOIN users u ON ch.user_id = u.id WHERE ch.thread_id = ? LIMIT 1').get(localThreadId) as { user_id: number } | undefined;
-    let userId;
-    if (!userResult) {
-      const newUser = db.prepare('INSERT INTO users DEFAULT VALUES').run();
-      userId = newUser.lastInsertRowid as number;
-    } else {
-      userId = userResult.user_id;
-    }
+    let userResult = await getOrCreateUserForThread(localThreadId);
+    let userId = userResult.userId;
 
     // Upload file to R2
     const fileKey = `${Date.now()}-${file.originalname}`;
@@ -802,19 +781,25 @@ app.post('/api/chat/file', upload.single('file'), async (req, res) => {
     const assistantText = assistantMessage?.content?.[0]?.text?.value || 'No response';
 
     // Save to DB
-    db.prepare('INSERT INTO chat_history (thread_id, user_id, message, response, message_type) VALUES (?, ?, ?, ?, ?)')
-      .run(localThreadId, userId, `${message} [File: ${fileUrl}]`, assistantText, 'file');
+    await createChatHistory({
+      threadId: localThreadId,
+      userId,
+      message: `${message} [File: ${fileUrl}]`,
+      response: assistantText,
+      messageType: 'file',
+      createdAt: new Date()
+    });
 
     // Extract and save user information if provided in the message
     if (message) {
       const extractedInfo = extractUserInfo(message);
       if (extractedInfo.name || extractedInfo.phone || extractedInfo.email) {
-        updateUserInfo(userId, extractedInfo);
+        await updateUserInfo(userId, extractedInfo);
       }
     }
 
     // Check if user has provided contact info
-    const userInfo = db.prepare('SELECT phone, email FROM users WHERE id = ?').get(userId) as UserRow;
+    const userInfo = await import('./db-operations.js').then(({ getUserById }) => getUserById(userId));
     let responseMessage = 'We have your files now, let us analyze and get back to you soon.';
 
     if (!userInfo || (!userInfo.phone && !userInfo.email)) {
@@ -858,53 +843,75 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
 }
 
 // API routes for dashboard data
-app.get('/api/dashboard/stats', requireAuth, (req, res) => {
+app.get('/api/dashboard/stats', requireAuth, async (req, res) => {
   try {
-    // const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-    // const totalChats = db.prepare('SELECT COUNT(*) as count FROM chat_history').get().count;
-    // const totalThreads = db.prepare('SELECT COUNT(*) as count FROM threads').get().count;
-    // const infoCollected = db.prepare('SELECT COUNT(*) as count FROM users WHERE info_collected = TRUE').get().count;
-    const totalUsers = (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
-
-    const totalChats = (db.prepare('SELECT COUNT(*) as count FROM chat_history').get() as { count: number }).count;
-
-    const totalThreads = (db.prepare('SELECT COUNT(*) as count FROM threads').get() as { count: number }).count;
-
-    const infoCollected = (db.prepare('SELECT COUNT(*) as count FROM users WHERE info_collected = TRUE').get() as { count: number }).count;
-    res.json({
-      totalUsers,
-      totalChats,
-      totalThreads,
-      infoCollected
-    });
+    const stats = await getDashboardStats();
+    res.json(stats);
   } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 
-app.get('/api/dashboard/users', requireAuth, (req, res) => {
+app.get('/api/dashboard/users', requireAuth, async (req, res) => {
   try {
-    const users = db.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
-    res.json(users);
+    const users = await getAllUsers();
+
+    // Transform MongoDB documents to match expected format
+    const transformedUsers = users.map((user) => ({
+      id: user._id ? user._id.toString() : '',
+      name: user.name,
+      phone: user.phone,
+      email: user.email,
+      info_collected: user.infoCollected,
+      created_at: user.createdAt
+    }));
+
+    res.json(transformedUsers);
   } catch (error) {
+    console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
-app.get('/api/dashboard/chats', requireAuth, (req, res) => {
+app.get('/api/dashboard/chats', requireAuth, async (req, res) => {
   try {
-    const chats = db.prepare('SELECT * FROM chat_history ORDER BY created_at DESC LIMIT 100').all();
-    res.json(chats);
+    const chats = await getRecentChatHistory(100);
+
+    // Transform MongoDB documents to match expected format
+    const transformedChats = chats.map((chat, index) => ({
+      id: chat._id ? chat._id.toString() : String(index + 1),
+      thread_id: chat.threadId,
+      user_id: chat.userId ? chat.userId.toString() : '',
+      message: chat.message,
+      response: chat.response,
+      message_type: chat.messageType,
+      user_info_extracted: chat.userInfoExtracted,
+      created_at: chat.createdAt
+    }));
+
+    res.json(transformedChats);
   } catch (error) {
+    console.error('Error fetching chats:', error);
     res.status(500).json({ error: 'Failed to fetch chats' });
   }
 });
 
-app.get('/api/dashboard/threads', requireAuth, (req, res) => {
+app.get('/api/dashboard/threads', requireAuth, async (req, res) => {
   try {
-    const threads = db.prepare('SELECT * FROM threads ORDER BY created_at DESC').all();
-    res.json(threads);
+    const threads = await getAllThreads();
+
+    // Transform MongoDB documents to match expected format
+    const transformedThreads = threads.map((thread, index) => ({
+      id: index + 1,
+      thread_id: thread.threadId,
+      openai_thread_id: thread.openaiThreadId,
+      created_at: thread.createdAt
+    }));
+
+    res.json(transformedThreads);
   } catch (error) {
+    console.error('Error fetching threads:', error);
     res.status(500).json({ error: 'Failed to fetch threads' });
   }
 });

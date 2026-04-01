@@ -17,7 +17,7 @@ A React-based web application with integrated GPT-powered chat functionality for
 - **Backend**: Node.js, Express, TypeScript
 - **AI**: OpenAI Assistants API for chat, OpenAI Whisper for transcription
 - **Storage**: Cloudflare R2 for file storage (S3-compatible)
-- **Database**: SQLite (better-sqlite3) for local storage
+- **Database**: MongoDB for data persistence
 - **Other**: Multer for file uploads, AWS SDK for R2, CORS for cross-origin requests
 
 ## Setup Instructions
@@ -26,6 +26,7 @@ A React-based web application with integrated GPT-powered chat functionality for
 
 - Node.js & npm installed
 - OpenAI API key
+- MongoDB instance (local or cloud)
 
 ### Installation
 
@@ -40,8 +41,26 @@ cd law-nexus-chat
 npm install
 ```
 
-3. Set up environment variables:
-   - Add your OpenAI API key, Assistant ID, and Cloudflare R2 credentials to `.env` file:
+3. Set up MongoDB:
+   - For local MongoDB: Install MongoDB and start the service
+   - For cloud MongoDB: Set up a MongoDB Atlas account or use your VPS MongoDB instance
+
+4. Configure environment variables:
+   - Copy `.env.example` to `.env` and fill in your credentials:
+   ```bash
+   cp .env.example .env
+   ```
+   - Update the following variables in `.env`:
+   ```
+   # OpenAI Configuration
+   OPENAI_API_KEY=sk-proj-your-actual-api-key-here
+   OPENAI_ASSISTANT_ID=asst_your_assistant_id_here
+
+   # MongoDB Configuration
+   MONGODB_URL=mongodb://username:password@your-vps-ip:27017
+   MONGODB_DB_NAME=law_nexus_chat
+
+   # Other configurations...
    ```
    OPENAI_API_KEY=sk-proj-your-actual-api-key-here
    OPENAI_ASSISTANT_ID=asst_your_assistant_id_here
@@ -71,29 +90,49 @@ The application will be available at `http://localhost:8080`
 - `POST /api/chat/voice` - Send voice message (transcribed and processed)
 - `POST /api/chat/file` - Upload file to R2 and send to assistant for analysis
 
-## Database Schema
+## Database Schema (MongoDB)
 
+The application uses MongoDB with the following collections:
+
+### users
+```javascript
+{
+  _id: ObjectId,
+  name: String,
+  phone: String,
+  email: String,
+  infoCollected: Boolean,
+  createdAt: Date
+}
 ```
-users:
-- id (PRIMARY KEY)
-- name, phone, email
-- info_collected (boolean)
-- created_at
 
-threads:
-- id (PRIMARY KEY)
-- thread_id (local thread ID)
-- openai_thread_id (OpenAI Assistants thread ID)
-- created_at
-
-chat_history:
-- id (PRIMARY KEY)
-- thread_id (local reference)
-- user_id (foreign key to users)
-- message, response
-- message_type ('text' or 'voice')
-- created_at
+### threads
+```javascript
+{
+  _id: ObjectId,
+  threadId: String, // Unique local thread identifier
+  openaiThreadId: String, // OpenAI Assistants thread ID
+  createdAt: Date
+}
 ```
+
+### chat_history
+```javascript
+{
+  _id: ObjectId,
+  threadId: String, // Reference to threads.threadId
+  userId: String, // Reference to users._id
+  message: String,
+  response: String,
+  messageType: String, // 'text', 'voice', or 'file'
+  userInfoExtracted: String, // JSON string of extracted user info
+  createdAt: Date
+}
+```
+
+## Migration from SQLite
+
+If you were previously using SQLite, the database structure has been converted to MongoDB collections. The application will automatically create the necessary collections and indexes on startup. No manual migration is required - the new MongoDB setup will work seamlessly with the existing API.
 
 ## How It Works
 
@@ -103,7 +142,7 @@ chat_history:
    - Assistant processes using its configured instructions and knowledge
 3. **Thread Continuity**: OpenAI threads maintain conversation memory automatically
 4. **Voice Processing**: Audio transcribed with Whisper, then sent to Assistant
-5. **History Persistence**: All messages stored locally in SQLite, synced with OpenAI
+5. **History Persistence**: All messages stored in MongoDB, synced with OpenAI
 
 ## Development
 

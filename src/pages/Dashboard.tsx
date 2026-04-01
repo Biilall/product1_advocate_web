@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Users, MessageSquare, Hash, UserCheck, RefreshCw } from "lucide-react";
 
+
 interface User {
-  id: number;
+  id: string;
   name?: string;
   phone?: string;
   email?: string;
@@ -19,10 +20,11 @@ interface User {
   created_at: string;
 }
 
+
 interface Chat {
-  id: number;
+  id: string;
   thread_id: string;
-  user_id?: number;
+  user_id?: string;
   message?: string;
   response?: string;
   message_type: string;
@@ -49,7 +51,7 @@ const Dashboard = () => {
 
   // Dialog state for user chat history
   const [selectedUserChats, setSelectedUserChats] = useState<Chat[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isUserChatHistoryOpen, setIsUserChatHistoryOpen] = useState(false);
 
   const dashboardPassword = "admin123"; // In production, this should come from env
@@ -103,7 +105,7 @@ const Dashboard = () => {
 
   // Group chats by user and get last message for each user
   const getGroupedChatsByUser = () => {
-    const userGroups: { [key: number]: Chat[] } = {};
+    const userGroups: { [key: string]: Chat[] } = {};
 
     chats.forEach(chat => {
       if (chat.user_id) {
@@ -120,10 +122,10 @@ const Dashboard = () => {
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       const lastChat = sortedChats[0];
-      const user = users.find(u => u.id === parseInt(userId));
+      const user = users.find(u => u.id === userId);
 
       return {
-        userId: parseInt(userId),
+        userId: userId,
         user,
         lastChat,
         totalChats: userChats.length,
@@ -132,7 +134,7 @@ const Dashboard = () => {
     });
   };
 
-  const handleUserRowClick = (userId: number) => {
+  const handleUserRowClick = (userId: string) => {
     const userChats = chats
       .filter(chat => chat.user_id === userId)
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
