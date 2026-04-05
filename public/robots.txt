@@ -12,3 +12,9 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+# Optional: Set crawl delay for heavy bots to reduce server load
+# Crawl-delay: 5
+
+# Sitemap location (helps search engines find your pages faster)
+Sitemap: https://www.msalmantahir.com/sitemap.xml
