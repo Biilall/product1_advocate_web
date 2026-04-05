@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Mic, MicOff, Paperclip, RotateCcw, ChevronDown } from "lucide-react";
+import { X, Send, Mic, MicOff, Paperclip, RotateCcw, ChevronDown } from "lucide-react";
 import salmanAvatar from "@/assets/salman-avatar.png";
 
 interface Message {
@@ -414,20 +414,127 @@ const send = () => {
   return (
     <>
       {/* Toggle button */}
-      {!open && (
+      {/* {!open && (
         <button
           onClick={handleOpen}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-foreground flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity"
+          className="fixed bottom-6 right-6 z-50 w-20 h-20 rounded-full bg-black flex items-center justify-center shadow-2xl hover:scale-110 transition-all duration-200"
+          // className="fixed bottom-6 right-6 z-50 w-20 h-20 rounded-full bg-foreground flex items-center justify-center shadow-2xl hover:scale-110 transition-all duration-200"
+          // className="fixed bottom-6 right-6 z-50 w-18 h-18 rounded-full bg-foreground flex items-center justify-center shadow-xl hover:opacity-90 transition-all duration-200 hover:scale-105"
           aria-label="Chat with Salman"
         >
-          <MessageCircle size={20} className="text-primary-foreground" />
+<svg
+  width="36"
+  height="36"
+  viewBox="0 0 24 24"
+  fill="none"
+  className="text-primary-foreground"
+>
+  <circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="2" />
+
+  <path
+    d="M6 18c0-3 3-5 6-5s6 2 6 5"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+  />
+
+  <path
+    d="M4 12a8 8 0 0 1 16 0"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+  />
+
+  <rect
+    x="3"
+    y="12"
+    width="3"
+    height="5"
+    rx="1"
+    stroke="currentColor"
+    strokeWidth="2"
+  />
+
+  <rect
+    x="18"
+    y="12"
+    width="3"
+    height="5"
+    rx="1"
+    stroke="currentColor"
+    strokeWidth="2"
+  />
+</svg>
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-sans font-medium animate-pulse">
-              {unreadCount}
+            <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-sans font-bold animate-bounce shadow-lg border-2 border-background">
+              {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </button>
+      )} */}
+      {!open && (
+  <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
+    
+    {/* WhatsApp Button */}
+    <a
+      href="https://wa.me/923006829799?text=Hello%20I%20need%20legal%20help"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center shadow-lg hover:scale-110 transition-all duration-200"
+      aria-label="Chat on WhatsApp"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 32 32"
+        width="26"
+        height="26"
+        fill="white"
+      >
+        <path d="M16 .396C7.164.396 0 7.56 0 16.396c0 2.89.76 5.6 2.08 7.94L.16 32l7.85-1.88a15.94 15.94 0 0 0 7.99 2.04c8.836 0 16-7.164 16-16S24.836.396 16 .396zm0 29.2c-2.54 0-5.03-.68-7.2-1.97l-.52-.31-4.66 1.12 1.24-4.54-.34-.56A13.4 13.4 0 0 1 2.6 16.4c0-7.4 6.02-13.4 13.4-13.4s13.4 6 13.4 13.4-6.02 13.4-13.4 13.4zm7.3-10.1c-.4-.2-2.36-1.16-2.72-1.3-.36-.14-.62-.2-.88.2s-1 1.3-1.22 1.56c-.22.26-.44.3-.82.1-2.28-1.14-3.78-2.04-5.28-4.62-.4-.68.4-.64 1.14-2.12.12-.26.06-.48-.04-.68-.1-.2-.88-2.12-1.2-2.9-.32-.76-.64-.66-.88-.68h-.76c-.26 0-.68.1-1.04.48s-1.36 1.32-1.36 3.22 1.4 3.74 1.6 4c.2.26 2.76 4.2 6.7 5.88.94.4 1.68.64 2.26.82.94.3 1.8.26 2.48.16.76-.12 2.36-.96 2.7-1.9.34-.94.34-1.74.24-1.9-.1-.16-.36-.26-.76-.46z" />
+      </svg>
+    </a>
+
+    {/* Chat Button */}
+    <button
+      onClick={handleOpen}
+      className="w-20 h-20 rounded-full bg-black flex items-center justify-center shadow-2xl hover:scale-110 transition-all duration-200"
+      aria-label="Chat with Salman"
+    >
+      {/* Your improved human + headphone SVG */}
+      <svg
+        width="36"
+        height="36"
+        viewBox="0 0 24 24"
+        fill="none"
+        className="text-white"
+      >
+        <circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="2" />
+        <path
+          d="M6 18c0-3 3-5 6-5s6 2 6 5"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <path
+          d="M4 12a8 8 0 0 1 16 0"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <rect x="3" y="12" width="3" height="5" rx="1" stroke="currentColor" strokeWidth="2" />
+        <rect x="18" y="12" width="3" height="5" rx="1" stroke="currentColor" strokeWidth="2" />
+      </svg>
+
+      {/* Notification Badge */}
+      {unreadCount > 0 && (
+        <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold animate-bounce border-2 border-background">
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
       )}
+    </button>
+
+  </div>
+)}
 
       {/* Chat window */}
       {open && (
