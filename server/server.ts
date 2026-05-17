@@ -101,10 +101,39 @@ if (process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
   // We'll test this when the first file upload happens
 }
 
-// Initialize MongoDB database
-console.log('Initializing MongoDB connection...');
-await initializeDatabase();
-console.log('✅ MongoDB initialized successfully');
+// Initialize MongoDB database in the background (non-blocking)
+let dbInitialized = false;
+let dbError: Error | null = null;
+
+console.log('Starting MongoDB initialization (non-blocking)...');
+initializeDatabase()
+  .then(() => {
+    dbInitialized = true;
+    console.log('✅ MongoDB initialized successfully');
+  })
+  .catch((error) => {
+    dbError = error;
+    console.error('❌ MongoDB initialization failed:', error);
+    console.error('Server will continue, but database operations will fail');
+  });
+
+// Middleware to check database status before operations that need it
+function requireDB(req: any, res: any, next: any) {
+  if (!dbInitialized) {
+    if (dbError) {
+      return res.status(503).json({
+        error: 'Database connection failed',
+        message: 'Database service is unavailable'
+      });
+    }
+    return res.status(503).json({
+      error: 'Database initializing',
+      message: 'Please retry in a moment'
+    });
+  }
+  next();
+}
+
 // Helper function to extract user information from messages
 function extractUserInfo(message: string): { name?: string; phone?: string; email?: string } {
   const result: { name?: string; phone?: string; email?: string } = {};
@@ -328,7 +357,7 @@ if (!fs.existsSync('uploads')) {
 }
 
 // Test endpoint to verify MongoDB connection
-app.get('/api/test-db', async (req, res) => {
+app.get('/api/test-db', requireDB, async (req, res) => {
   try {
     const stats = await getDashboardStats();
     const recentChats = await getRecentChatHistory(5);
@@ -351,7 +380,7 @@ app.get('/api/test-db', async (req, res) => {
     });
   }
 });
-app.get('/api/chat/history/:threadId', async (req, res) => {
+app.get('/api/chat/history/:threadId', requireDB, async (req, res) => {
   const { threadId } = req.params;
 
   try {
@@ -378,7 +407,7 @@ app.get('/api/chat/history/:threadId', async (req, res) => {
   }
 });
 
-app.get('/api/chat/topics', async (req, res) => {
+app.get('/api/chat/topics', requireDB, async (req, res) => {
   try {
     const topics = await getChatTopics(20);
     console.log(`[API] Found ${topics.length} chat topics`);
@@ -390,7 +419,7 @@ app.get('/api/chat/topics', async (req, res) => {
 });
 
 // Create new user and thread
-app.post('/api/chat/start', async (req, res) => {
+app.post('/api/chat/start', requireDB, async (req, res) => {
   try {
     const userId = await createUser();
     const threadId = `thread_${Date.now()}_${userId}`;
@@ -403,7 +432,7 @@ app.post('/api/chat/start', async (req, res) => {
 });
 
 // Handle text chat
-app.post('/api/chat/text', async (req, res) => {
+app.post('/api/chat/text', requireDB, async (req, res) => {
   console.log('=== API CALL RECEIVED ===');
   const { threadId, message } = req.body;
   console.log(`ThreadId: ${threadId}, Message: ${message}`);
@@ -545,7 +574,7 @@ async function openaiVoice(text: string) {
   const audioBase64 = Buffer.from(await resp.arrayBuffer()).toString('base64');
   return audioBase64;
 }
-app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
+app.post('/api/chat/voice', upload.single('audio'), requireDB, async (req, res) => {
   const audioFile = req.file;
   if (!audioFile) return res.status(400).json({ error: 'No audio file provided' });
 
@@ -644,7 +673,7 @@ app.post('/api/chat/voice', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.post('/api/chat/file', upload.single('file'), async (req, res) => {
+app.post('/api/chat/file', upload.single('file'), requireDB, async (req, res) => {
   const file = req.file;
   if (!file) return res.status(400).json({ error: 'No file provided' });
 
@@ -853,7 +882,7 @@ app.get('/api/dashboard/stats', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/dashboard/users', requireAuth, async (req, res) => {
+app.get('/api/dashboard/users', requireAuth, requireDB, async (req, res) => {
   try {
     const users = await getAllUsers();
 
@@ -874,7 +903,7 @@ app.get('/api/dashboard/users', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/dashboard/chats', requireAuth, async (req, res) => {
+app.get('/api/dashboard/chats', requireAuth, requireDB, async (req, res) => {
   try {
     const chats = await getRecentChatHistory(100);
 
@@ -897,7 +926,7 @@ app.get('/api/dashboard/chats', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/dashboard/threads', requireAuth, async (req, res) => {
+app.get('/api/dashboard/threads', requireAuth, requireDB, async (req, res) => {
   try {
     const threads = await getAllThreads();
 
