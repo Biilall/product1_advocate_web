@@ -1,4 +1,5 @@
 import { MapPin, Phone, Mail } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const offices = [
   // {
@@ -62,11 +63,49 @@ const ContactSection = () => {
         </a>
       </div>
 
-      <footer className="mt-24 mb-12 pt-12 border-t border-border text-center">
-        <p className="font-serif text-lg">M Salman Tahir</p>
-        <p className="font-sans text-xs text-muted-foreground mt-2 tracking-wider uppercase">
-          Advocate — High Court of Pakistan
-        </p>
+      <footer className="mt-24 mb-12 pt-12 border-t border-border">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-10">
+          <div>
+            <h4 className="font-serif text-base mb-3">Office Address</h4>
+            <p className="font-sans text-sm text-foreground/70 leading-relaxed">
+              Office No. 401, 4th Floor,<br />
+              Qureshi Building, Lower Mall Road,<br />
+              Lahore, Pakistan
+            </p>
+            <p className="font-sans text-sm text-foreground/70 mt-2">
+              Phone: <a href="tel:+923006829799" className="border-b border-border hover:border-foreground transition-colors">+92 300 6829799</a>
+            </p>
+            <p className="font-sans text-sm text-foreground/70 mt-1">
+              Email: <a href="mailto:Salman.tahir14@yahoo.com" className="border-b border-border hover:border-foreground transition-colors">Salman.tahir14@yahoo.com</a>
+            </p>
+          </div>
+          <div>
+            <h4 className="font-serif text-base mb-3">Legal</h4>
+            <ul className="space-y-2 font-sans text-sm text-foreground/70">
+              <li>
+                <Link to="/privacy-policy" className="border-b border-border hover:border-foreground transition-colors">Privacy Policy</Link>
+              </li>
+              <li>
+                <Link to="/refund-policy" className="border-b border-border hover:border-foreground transition-colors">Return & Refund Policy</Link>
+              </li>
+              <li>
+                <Link to="/service-policy" className="border-b border-border hover:border-foreground transition-colors">Service Delivery Policy</Link>
+              </li>
+              <li>
+                <Link to="/terms-and-conditions" className="border-b border-border hover:border-foreground transition-colors">Terms & Conditions</Link>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div className="text-center pt-8 border-t border-border">
+          <p className="font-serif text-lg">M Salman Tahir</p>
+          <p className="font-sans text-xs text-muted-foreground mt-2 tracking-wider uppercase">
+            Advocate — High Court of Pakistan
+          </p>
+          <p className="font-sans text-xs text-muted-foreground mt-1">
+            © {new Date().getFullYear()} All rights reserved.
+          </p>
+        </div>
       </footer>
     </section>
   );
