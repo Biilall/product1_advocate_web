@@ -27,6 +27,41 @@ export interface Thread {
   createdAt: Date;
 }
 
+export interface Payment {
+  _id?: ObjectId;
+  tracker: string;
+  threadId?: string;
+  userId?: string;
+  amount: number;
+  currency: string;
+  description?: string;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  safepayRef?: string;
+  safepayData?: any;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BlogPost {
+  _id?: ObjectId;
+  title: string;
+  slug: string;
+  content: string;        // HTML content
+  excerpt: string;         // Short summary for listings & meta description
+  featuredImage?: string;  // URL to featured image
+  category: string;
+  tags: string[];
+  status: 'draft' | 'published';
+  // SEO fields
+  metaTitle?: string;
+  metaDescription?: string;
+  ogImage?: string;
+  // Dates
+  publishedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 class Database {
   private client: MongoClient;
   private db: Db | null = null;
@@ -37,6 +72,8 @@ class Database {
   public users!: Collection<User>;
   public chatHistory!: Collection<ChatHistory>;
   public threads!: Collection<Thread>;
+  public payments!: Collection<Payment>;
+  public blogPosts!: Collection<BlogPost>;
 
   constructor() {
     this.mongoUrl = process.env.MONGODB_URI || process.env.MONGODB_URL || 'mongodb://REDACTED_USER:REDACTED_PASSWORD@127.0.0.1:27017/law_nexus_chat?authSource=admin';
@@ -53,6 +90,15 @@ class Database {
 
   async connect(): Promise<void> {
     try {
+      // Re-read env vars at connect time (after dotenv has loaded)
+      this.mongoUrl = process.env.MONGODB_URI || process.env.MONGODB_URL || this.mongoUrl;
+      this.dbName = process.env.MONGODB_DB_NAME || this.dbName;
+      this.client = new MongoClient(this.mongoUrl, {
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+      });
+
       console.log('🔄 Attempting to connect to MongoDB...');
       console.log('📍 MongoDB URI:', this.mongoUrl.replace(/\/\/.*@/, '//***:***@'));
       console.log('📊 Database name:', this.dbName);
@@ -68,6 +114,8 @@ class Database {
       this.users = this.db.collection<User>('users');
       this.chatHistory = this.db.collection<ChatHistory>('chat_history');
       this.threads = this.db.collection<Thread>('threads');
+      this.payments = this.db.collection<Payment>('payments');
+      this.blogPosts = this.db.collection<BlogPost>('blog_posts');
 
       // Create indexes for better performance
       await this.createIndexes();
@@ -97,6 +145,20 @@ class Database {
       // Threads indexes
       await this.threads.createIndex({ threadId: 1 }, { unique: true });
       await this.threads.createIndex({ createdAt: -1 });
+
+      // Payments indexes
+      await this.payments.createIndex({ tracker: 1 }, { unique: true });
+      await this.payments.createIndex({ userId: 1 });
+      await this.payments.createIndex({ threadId: 1 });
+      await this.payments.createIndex({ status: 1 });
+      await this.payments.createIndex({ createdAt: -1 });
+
+      // Blog posts indexes
+      await this.blogPosts.createIndex({ slug: 1 }, { unique: true });
+      await this.blogPosts.createIndex({ status: 1 });
+      await this.blogPosts.createIndex({ category: 1 });
+      await this.blogPosts.createIndex({ publishedAt: -1 });
+      await this.blogPosts.createIndex({ createdAt: -1 });
 
       console.log('✅ Database indexes created');
     } catch (error) {

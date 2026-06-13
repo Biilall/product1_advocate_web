@@ -1,4 +1,4 @@
-import database, { User, ChatHistory, Thread } from './database.js';
+import database, { User, ChatHistory, Thread, Payment, BlogPost } from './database.js';
 import { ObjectId } from 'mongodb';
 
 // Initialize database connection
@@ -139,6 +139,40 @@ export async function getChatTopics(limit: number = 20): Promise<any[]> {
   }));
 }
 
+export async function getChatTopicsByUser(userId: string, limit: number = 20): Promise<any[]> {
+  const pipeline = [
+    {
+      $match: { userId }
+    },
+    {
+      $sort: { createdAt: 1 }
+    },
+    {
+      $group: {
+        _id: "$threadId",
+        firstMessage: { $first: "$message" },
+        createdAt: { $first: "$createdAt" },
+        messageCount: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { createdAt: -1 }
+    },
+    {
+      $limit: limit
+    }
+  ];
+
+  const topics = await database.chatHistory.aggregate(pipeline).toArray();
+
+  return topics.map(topic => ({
+    thread_id: topic._id,
+    first_message: topic.firstMessage,
+    created_at: topic.createdAt,
+    message_count: topic.messageCount
+  }));
+}
+
 // Thread operations
 export async function createThread(threadData: Omit<Thread, '_id'>): Promise<void> {
   await database.threads.insertOne(threadData);
@@ -163,6 +197,21 @@ export async function getOrCreateUserForThread(threadId: string): Promise<{ user
 
   if (existingChat) {
     return { userId: existingChat.userId, isNew: false };
+  }
+
+  // Check if the threadId encodes a userId (format: thread_{timestamp}_{userId})
+  const parts = threadId.split('_');
+  if (parts.length >= 3) {
+    const embeddedUserId = parts.slice(2).join('_');
+    // Verify this user exists
+    try {
+      const user = await getUserById(embeddedUserId);
+      if (user) {
+        return { userId: embeddedUserId, isNew: false };
+      }
+    } catch {
+      // Invalid ObjectId format, fall through
+    }
   }
 
   // Create new user
@@ -190,4 +239,141 @@ export async function getDashboardStats(): Promise<{
     totalThreads,
     infoCollected
   };
+}
+
+// Payment operations
+export async function createPayment(paymentData: Omit<Payment, '_id'>): Promise<string> {
+  const result = await database.payments.insertOne(paymentData);
+  return result.insertedId.toString();
+}
+
+export async function updatePaymentByTracker(
+  tracker: string,
+  updates: Partial<Payment>
+): Promise<void> {
+  await database.payments.updateOne(
+    { tracker },
+    { $set: { ...updates, updatedAt: new Date() } }
+  );
+}
+
+export async function getPaymentByTracker(tracker: string): Promise<Payment | null> {
+  return await database.payments.findOne({ tracker });
+}
+
+export async function getPaymentsByUser(userId: string): Promise<Payment[]> {
+  return await database.payments
+    .find({ userId })
+    .sort({ createdAt: -1 })
+    .toArray();
+}
+
+export async function getPaymentsByThread(threadId: string): Promise<Payment[]> {
+  return await database.payments
+    .find({ threadId })
+    .sort({ createdAt: -1 })
+    .toArray();
+}
+
+export async function getAllPayments(limit: number = 100): Promise<Payment[]> {
+  return await database.payments
+    .find({})
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .toArray();
+}
+
+export async function getPaymentStats(): Promise<{
+  totalPayments: number;
+  completedPayments: number;
+  totalRevenue: number;
+}> {
+  const [totalPayments, completedPayments, revenueResult] = await Promise.all([
+    database.payments.countDocuments(),
+    database.payments.countDocuments({ status: 'completed' }),
+    database.payments.aggregate([
+      { $match: { status: 'completed' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]).toArray()
+  ]);
+
+  return {
+    totalPayments,
+    completedPayments,
+    totalRevenue: revenueResult[0]?.total || 0
+  };
+}
+
+// ==================== Blog Post Operations ====================
+
+export async function createBlogPost(postData: Omit<BlogPost, '_id'>): Promise<string> {
+  const result = await database.blogPosts.insertOne(postData);
+  return result.insertedId.toString();
+}
+
+export async function updateBlogPost(id: string, updates: Partial<BlogPost>): Promise<void> {
+  await database.blogPosts.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { ...updates, updatedAt: new Date() } }
+  );
+}
+
+export async function deleteBlogPost(id: string): Promise<void> {
+  await database.blogPosts.deleteOne({ _id: new ObjectId(id) });
+}
+
+export async function getBlogPostById(id: string): Promise<BlogPost | null> {
+  try {
+    return await database.blogPosts.findOne({ _id: new ObjectId(id) });
+  } catch {
+    return null;
+  }
+}
+
+export async function getBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+  return await database.blogPosts.findOne({ slug, status: 'published' });
+}
+
+export async function getPublishedBlogPosts(page: number = 1, limit: number = 10): Promise<{ posts: BlogPost[]; total: number }> {
+  const skip = (page - 1) * limit;
+  const [posts, total] = await Promise.all([
+    database.blogPosts
+      .find({ status: 'published' })
+      .sort({ publishedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray(),
+    database.blogPosts.countDocuments({ status: 'published' })
+  ]);
+  return { posts, total };
+}
+
+export async function getBlogPostsByCategory(category: string, page: number = 1, limit: number = 10): Promise<{ posts: BlogPost[]; total: number }> {
+  const skip = (page - 1) * limit;
+  const [posts, total] = await Promise.all([
+    database.blogPosts
+      .find({ status: 'published', category })
+      .sort({ publishedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray(),
+    database.blogPosts.countDocuments({ status: 'published', category })
+  ]);
+  return { posts, total };
+}
+
+export async function getAllBlogPosts(): Promise<BlogPost[]> {
+  return await database.blogPosts.find({}).sort({ createdAt: -1 }).toArray();
+}
+
+export async function getBlogCategories(): Promise<string[]> {
+  const categories = await database.blogPosts.distinct('category', { status: 'published' });
+  return categories;
+}
+
+export async function getAllBlogSlugs(): Promise<{ slug: string; updatedAt: Date }[]> {
+  return await database.blogPosts
+    .find({ status: 'published' }, { projection: { slug: 1, updatedAt: 1 } })
+    .toArray()
+    .then(posts => posts.map(p => ({ slug: p.slug, updatedAt: p.updatedAt })));
 }

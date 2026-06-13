@@ -17,4 +17,4 @@ Allow: /
 # Crawl-delay: 5
 
 # Sitemap location (helps search engines find your pages faster)
-Sitemap: https://www.msalmantahir.com/sitemap.xml
+Sitemap: https://msalmantahir.com/sitemap.xml

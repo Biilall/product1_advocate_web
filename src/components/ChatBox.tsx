@@ -25,6 +25,7 @@ const ChatBox = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotification, setShowNotification] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showTopicsDropdown, setShowTopicsDropdown] = useState(false);
@@ -57,16 +58,19 @@ const ChatBox = () => {
   // Initialize user
   useEffect(() => {
     const initSession = async () => {
-      let threadId = localStorage.getItem('chatThreadId');
-      if (!threadId) {
+      let storedThreadId = localStorage.getItem('chatThreadId');
+      const storedUserId = localStorage.getItem('chatUserId');
+      if (!storedThreadId) {
         try {
           const response = await fetch('/api/chat/start', {
             method: 'POST',
           });
           const data = await response.json();
-          threadId = data.threadId;
-          localStorage.setItem('chatThreadId', threadId);
-          setThreadId(threadId);
+          storedThreadId = data.threadId;
+          localStorage.setItem('chatThreadId', storedThreadId!);
+          localStorage.setItem('chatUserId', data.userId);
+          setThreadId(storedThreadId);
+          setUserId(data.userId);
           // Start with welcome message
           setMessages([{ role: "assistant", text: "Assalam-o-Alaikum! I am M Salman Tahir, a legal expert. To better assist you, could you please share your name, phone number, and email address?" }]);
         } catch (error) {
@@ -74,8 +78,9 @@ const ChatBox = () => {
           setMessages([{ role: "assistant", text: "Assalam-o-Alaikum. I am M Salman Tahir. How may I assist you today?" }]);
         }
       } else {
-        setThreadId(threadId);
-        loadHistory(threadId);
+        setThreadId(storedThreadId);
+        setUserId(storedUserId);
+        loadHistory(storedThreadId);
       }
     };
 
@@ -106,13 +111,18 @@ const ChatBox = () => {
 
     const paymentMethodsTrigger = /payment methods?|how.*pay|pay.*method|mobile.*payment|jazzcash/i;
     const bankTransferTrigger = /bank transfer|bank details|bank account|ifsc|swift|account number/i;
+    const feeTrigger = /fee|fees|pricing|charges|how much|cost|rate/i;
 
     if (paymentMethodsTrigger.test(normalized)) {
-      return "JazzCash Number: 0300-6829799";
+      return "You can pay online via our secure payment portal: /fees\n\nAlternatively:\n• JazzCash: 0300-6829799\n• Bank Transfer: /bank-transfer-qr";
     }
 
     if (bankTransferTrigger.test(normalized)) {
-      return "Please use this link: https://msalmantahir.com/bank-transfer-qr";
+      return "Please use this link for bank transfer details: /bank-transfer-qr\n\nOr pay online: /fees";
+    }
+
+    if (feeTrigger.test(normalized)) {
+      return "View our fee structure and pay online: /fees";
     }
 
     return null;
@@ -335,7 +345,9 @@ const send = () => {
       const data = await response.json();
       const newThreadId = data.threadId;
       localStorage.setItem('chatThreadId', newThreadId);
+      localStorage.setItem('chatUserId', data.userId);
       setThreadId(newThreadId);
+      setUserId(data.userId);
       
       // Start with welcome message
       setMessages([{ role: "assistant", text: "Assalam-o-Alaikum! I am M Salman Tahir, a legal expert. To better assist you, could you please share your name, phone number, and email address?" }]);
@@ -347,7 +359,9 @@ const send = () => {
 
   const fetchChatTopics = async () => {
     try {
-      const response = await fetch('/api/chat/topics');
+      const currentUserId = userId || localStorage.getItem('chatUserId');
+      if (!currentUserId) return;
+      const response = await fetch(`/api/chat/topics?userId=${encodeURIComponent(currentUserId)}`);
       const topics = await response.json();
       setChatTopics(topics);
     } catch (error) {
@@ -388,22 +402,32 @@ const send = () => {
   };
 
   const renderMessageText = (text?: string) => {
-  if (!text) return <span></span>; // ✅ prevent crash
+  if (!text) return <span></span>;
 
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const parts = text.split(urlRegex);
+  // Match external URLs and internal paths like /fees, /bank-transfer-qr, /payments etc.
+  const linkRegex = /(https?:\/\/[^\s]+|\/[a-z][a-z0-9-]*(?:\/[a-z0-9-]*)*)/gi;
+  const parts = text.split(linkRegex);
 
   return parts.map((part, i) => {
-    if (urlRegex.test(part)) {
+    if (linkRegex.test(part)) {
+      const isExternal = /^https?:\/\//.test(part);
+      // Map internal paths to friendly labels
+      const labelMap: Record<string, string> = {
+        '/fees': 'Fee Structure & Online Payment',
+        '/bank-transfer-qr': 'Bank Transfer Details',
+        '/payments': 'Payment History',
+        '/payment/success': 'Payment Confirmation',
+      };
+      const label = isExternal ? part : (labelMap[part] || part);
       return (
         <a
           key={`${part}-${i}`}
           href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 underline hover:text-blue-800"
+          target={isExternal ? "_blank" : "_self"}
+          rel={isExternal ? "noopener noreferrer" : undefined}
+          className="text-blue-600 underline hover:text-blue-800 font-medium"
         >
-          {part}
+          {label}
         </a>
       );
     }
@@ -482,6 +506,7 @@ const send = () => {
       rel="noopener noreferrer"
       className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center shadow-lg hover:scale-110 transition-all duration-200"
       aria-label="Chat on WhatsApp"
+      onClick={() => { fetch('/api/notify/whatsapp-click', { method: 'POST' }).catch(() => {}); }}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

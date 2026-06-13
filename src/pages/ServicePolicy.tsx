@@ -1,10 +1,13 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 
 const ServicePolicy = () => {
   return (
-    <main className="bg-background min-h-screen">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16">
+    <main className="bg-background min-h-screen flex flex-col">
+      <SiteHeader />
+      <div className="flex-1 max-w-3xl mx-auto px-4 sm:px-6 py-16">
         <Link
           to="/"
           className="inline-flex items-center gap-2 font-sans text-sm text-muted-foreground hover:text-foreground transition-colors mb-12"
@@ -93,6 +96,7 @@ const ServicePolicy = () => {
           </section>
         </div>
       </div>
+      <SiteFooter />
     </main>
   );
 };

@@ -54,26 +54,38 @@ const Dashboard = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isUserChatHistoryOpen, setIsUserChatHistoryOpen] = useState(false);
 
-  const dashboardPassword = "admin123"; // In production, this should come from env
+  const getAuthHeader = () => "Basic " + btoa("admin:" + password);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === dashboardPassword) {
+    setIsLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/dashboard/stats", {
+        headers: { Authorization: "Basic " + btoa("admin:" + password) },
+      });
+      if (!res.ok) {
+        setError("Invalid password");
+        return;
+      }
       setIsAuthenticated(true);
-      setError("");
       loadDashboardData();
-    } else {
-      setError("Invalid password");
+    } catch {
+      setError("Connection error");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const loadDashboardData = async () => {
     setLoading(true);
     try {
+      const authHeader = getAuthHeader();
+      const headers = { Authorization: authHeader };
       const [statsRes, usersRes, chatsRes] = await Promise.all([
-        fetch(`/api/dashboard/stats?password=${dashboardPassword}`),
-        fetch(`/api/dashboard/users?password=${dashboardPassword}`),
-        fetch(`/api/dashboard/chats?password=${dashboardPassword}`)
+        fetch("/api/dashboard/stats", { headers }),
+        fetch("/api/dashboard/users", { headers }),
+        fetch("/api/dashboard/chats", { headers })
       ]);
 
       if (!statsRes.ok || !usersRes.ok || !chatsRes.ok) {
@@ -191,6 +203,9 @@ const Dashboard = () => {
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
+            <Link to="/dashboard/blog">
+              <Button variant="outline">Blog Manager</Button>
+            </Link>
             <Button variant="outline" onClick={handleLogout}>
               Logout
             </Button>

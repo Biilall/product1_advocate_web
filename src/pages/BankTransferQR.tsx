@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import courtImg from "@/assets/lahore-high-court.png";
 import qrBankImage from "@/assets/salman_QR_Bank.jpeg";
+import SiteHeader from "@/components/SiteHeader";
 
 const BankTransferQR = () => {
   const [bankName, setBankName] = useState("Allied Bank")
@@ -20,14 +21,16 @@ const BankTransferQR = () => {
   const qrImageUrl = qrBankImage;
 
   return (
-    <main
-      className="relative min-h-screen p-6 text-slate-900"
-      style={{
-        backgroundImage: `url(${courtImg})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
-    >
+    <main className="min-h-screen flex flex-col">
+      <SiteHeader />
+      <div
+        className="relative flex-1 p-6 text-slate-900"
+        style={{
+          backgroundImage: `url(${courtImg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div className="relative mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white/85 p-6 shadow-md backdrop-blur-sm">
         <div className="mb-6 flex items-center justify-between gap-3">
@@ -113,6 +116,7 @@ const BankTransferQR = () => {
           </div>
         </div>
       </div>
+    </div>
     </main>
   );
 };

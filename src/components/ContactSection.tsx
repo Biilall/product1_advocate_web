@@ -83,6 +83,9 @@ const ContactSection = () => {
             <h4 className="font-serif text-base mb-3">Legal</h4>
             <ul className="space-y-2 font-sans text-sm text-foreground/70">
               <li>
+                <Link to="/blog" className="border-b border-border hover:border-foreground transition-colors">Blog</Link>
+              </li>
+              <li>
                 <Link to="/privacy-policy" className="border-b border-border hover:border-foreground transition-colors">Privacy Policy</Link>
               </li>
               <li>

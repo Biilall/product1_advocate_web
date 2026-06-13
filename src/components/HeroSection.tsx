@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import lahoreHighCourt from "@/assets/lahore-high-court.png";
 
 const HeroSection = () => {
@@ -67,6 +68,7 @@ const HeroSection = () => {
           <a href="#success" className="hover:text-primary-foreground transition-colors">Record</a>
           <a href="#reviews" className="hover:text-primary-foreground transition-colors">Clients</a>
           <a href="#contact" className="hover:text-primary-foreground transition-colors">Contact</a>
+          <Link to="/blog" className="hover:text-primary-foreground transition-colors">Blog</Link>
         </nav>
       </div>
     </section>

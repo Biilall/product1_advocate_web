@@ -9,9 +9,11 @@ import dotenv from 'dotenv';
 import gTTS from 'google-tts-api';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import ffmpeg from 'fluent-ffmpeg';
+import Safepay from '@sfpy/node-core';
+import nodemailer from 'nodemailer';
 
 // Import MongoDB operations
-import { initializeDatabase, createUser, getOrCreateUserForThread, createChatHistory, getThreadByThreadId, createThread, getAllUsers, getRecentChatHistory, getAllThreads, getDashboardStats, getChatTopics, getChatHistoryByThread } from './db-operations.js';
+import { initializeDatabase, createUser, getOrCreateUserForThread, createChatHistory, getThreadByThreadId, createThread, getAllUsers, getRecentChatHistory, getAllThreads, getDashboardStats, getChatTopics, getChatTopicsByUser, getChatHistoryByThread, createPayment, updatePaymentByTracker, getPaymentByTracker, getAllPayments, getPaymentStats, getPaymentsByThread, getUserById, createBlogPost, updateBlogPost, deleteBlogPost, getBlogPostById, getBlogPostBySlug, getPublishedBlogPosts, getBlogPostsByCategory, getAllBlogPosts, getBlogCategories, getAllBlogSlugs } from './db-operations.js';
 type ChatHistoryRow = {
   _id: string;
   threadId: string;
@@ -99,6 +101,133 @@ const r2Client = new S3Client({
 if (process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
   console.log('Testing R2 connection...');
   // We'll test this when the first file upload happens
+}
+
+// Initialize Safepay
+const safepay = new Safepay(process.env.SAFEPAY_SECRET_KEY || '', {
+  authType: 'secret',
+  host: process.env.SAFEPAY_HOST || 'https://sandbox.api.getsafepay.com',
+});
+const SAFEPAY_ENV = (process.env.SAFEPAY_ENV || 'sandbox') as 'development' | 'sandbox' | 'production';
+
+// Initialize email transporter
+const emailTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: Number(process.env.SMTP_PORT) || 587,
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: {
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+  },
+});
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'salmantahir@msalmantahir.com';
+const FROM_EMAIL = process.env.FROM_EMAIL || process.env.SMTP_USER || 'noreply@msalmantahir.com';
+
+// Send invoice email to client
+async function sendInvoiceEmail(toEmail: string, payment: { amount: number; currency: string; tracker: string; description?: string; safepayRef?: string }) {
+  if (!process.env.SMTP_USER) {
+    console.warn('[Email] SMTP not configured, skipping invoice email');
+    return;
+  }
+  try {
+    const date = new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'long', day: 'numeric' });
+    await emailTransporter.sendMail({
+      from: `"M Salman Tahir - Legal Services" <${FROM_EMAIL}>`,
+      to: toEmail,
+      subject: `Payment Invoice - ${payment.tracker}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+          <div style="background: #1e3a5f; color: white; padding: 24px; text-align: center;">
+            <h1 style="margin: 0; font-size: 22px;">Payment Invoice</h1>
+            <p style="margin: 8px 0 0; opacity: 0.9;">M Salman Tahir - Advocate &amp; Legal Consultant</p>
+          </div>
+          <div style="padding: 24px;">
+            <p>Dear Client,</p>
+            <p>Thank you for your payment. Here are the details of your transaction:</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px; font-weight: bold; color: #475569;">Date</td>
+                <td style="padding: 10px;">${date}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px; font-weight: bold; color: #475569;">Amount</td>
+                <td style="padding: 10px; font-size: 18px; font-weight: bold; color: #16a34a;">${payment.currency} ${payment.amount.toLocaleString()}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px; font-weight: bold; color: #475569;">Reference</td>
+                <td style="padding: 10px; font-family: monospace;">${payment.safepayRef || payment.tracker}</td>
+              </tr>
+              ${payment.description ? `<tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 10px; font-weight: bold; color: #475569;">Description</td><td style="padding: 10px;">${payment.description}</td></tr>` : ''}
+              <tr>
+                <td style="padding: 10px; font-weight: bold; color: #475569;">Status</td>
+                <td style="padding: 10px;"><span style="background: #dcfce7; color: #16a34a; padding: 4px 12px; border-radius: 12px; font-weight: bold;">Completed</span></td>
+              </tr>
+            </table>
+            <p style="margin-top: 16px;">Our team will review your payment and reach out to you shortly. If you have any questions, feel free to reply to this email or contact us through our website.</p>
+            <p style="color: #64748b; font-size: 13px; margin-top: 24px;">This is an automated invoice from M Salman Tahir Legal Services.</p>
+          </div>
+        </div>
+      `,
+    });
+    console.log(`[Email] Invoice sent to ${toEmail}`);
+  } catch (err) {
+    console.error('[Email] Failed to send invoice:', err);
+  }
+}
+
+// Send notification email to admin about new payment
+async function sendAdminPaymentNotification(payment: { amount: number; currency: string; tracker: string; description?: string; safepayRef?: string }, clientInfo: { name?: string; phone?: string; email?: string }) {
+  if (!process.env.SMTP_USER) {
+    console.warn('[Email] SMTP not configured, skipping admin notification');
+    return;
+  }
+  try {
+    await emailTransporter.sendMail({
+      from: `"Payment System" <${FROM_EMAIL}>`,
+      to: ADMIN_EMAIL,
+      subject: `New Payment Received - ${payment.currency} ${payment.amount.toLocaleString()}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1e3a5f;">New Payment Received</h2>
+          <p>A client has made a successful payment. Details below:</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px; font-weight: bold;">Amount</td>
+              <td style="padding: 8px; font-weight: bold; color: #16a34a;">${payment.currency} ${payment.amount.toLocaleString()}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px; font-weight: bold;">Reference</td>
+              <td style="padding: 8px; font-family: monospace;">${payment.safepayRef || payment.tracker}</td>
+            </tr>
+            ${payment.description ? `<tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px; font-weight: bold;">Description</td><td style="padding: 8px;">${payment.description}</td></tr>` : ''}
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px; font-weight: bold;">Client Name</td>
+              <td style="padding: 8px;">${clientInfo.name || 'Not provided'}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px; font-weight: bold;">Client Phone</td>
+              <td style="padding: 8px;">${clientInfo.phone || 'Not provided'}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px; font-weight: bold;">Client Email</td>
+              <td style="padding: 8px;">${clientInfo.email || 'Not provided'}</td>
+            </tr>
+          </table>
+          <p style="color: #64748b; font-size: 13px;">Please follow up with the client at your earliest convenience.</p>
+        </div>
+      `,
+    });
+    console.log(`[Email] Admin notification sent to ${ADMIN_EMAIL}`);
+  } catch (err) {
+    console.error('[Email] Failed to send admin notification:', err);
+  }
+}
+
+if (process.env.SAFEPAY_SECRET_KEY) {
+  console.log('✅ Safepay initialized (env:', SAFEPAY_ENV, ')');
+} else {
+  console.warn('⚠️ SAFEPAY_SECRET_KEY not set - payment features disabled');
 }
 
 // Initialize MongoDB database in the background (non-blocking)
@@ -409,7 +538,13 @@ app.get('/api/chat/history/:threadId', requireDB, async (req, res) => {
 
 app.get('/api/chat/topics', requireDB, async (req, res) => {
   try {
-    const topics = await getChatTopics(20);
+    const userId = req.query.userId as string;
+    let topics;
+    if (userId) {
+      topics = await getChatTopicsByUser(userId, 20);
+    } else {
+      topics = await getChatTopics(20);
+    }
     console.log(`[API] Found ${topics.length} chat topics`);
     res.json(topics);
   } catch (error) {
@@ -418,11 +553,44 @@ app.get('/api/chat/topics', requireDB, async (req, res) => {
   }
 });
 
+// WhatsApp click notification
+app.post('/api/notify/whatsapp-click', async (_req, res) => {
+  const now = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
+  sendAdminNotificationEmail(
+    '📱 WhatsApp Contact Clicked',
+    `<div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <h2 style="color: #25d366; margin-bottom: 16px;">WhatsApp Link Clicked</h2>
+      <p>A visitor clicked the WhatsApp button on your website.</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <tr><td style="padding: 8px; font-weight: bold;">Time:</td><td style="padding: 8px;">${now}</td></tr>
+      </table>
+      <p style="color: #718096; font-size: 12px;">This is an automated notification from msalmantahir.com</p>
+    </div>`
+  );
+  res.json({ ok: true });
+});
+
 // Create new user and thread
 app.post('/api/chat/start', requireDB, async (req, res) => {
   try {
     const userId = await createUser();
     const threadId = `thread_${Date.now()}_${userId}`;
+
+    // Send admin email notification about new chat session
+    const now = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
+    sendAdminNotificationEmail(
+      '🔔 New Chat Session Started',
+      `<div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #1a365d; margin-bottom: 16px;">New Chat Session</h2>
+        <p>A new visitor has started a chat on your website.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+          <tr><td style="padding: 8px; font-weight: bold;">User ID:</td><td style="padding: 8px;">${userId}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold;">Thread ID:</td><td style="padding: 8px;">${threadId}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold;">Time:</td><td style="padding: 8px;">${now}</td></tr>
+        </table>
+        <p style="color: #718096; font-size: 12px;">This is an automated notification from msalmantahir.com</p>
+      </div>`
+    );
 
     res.json({ userId, threadId });
   } catch (error) {
@@ -871,6 +1039,46 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   next();
 }
 
+// Blog management authentication middleware (separate password)
+function requireBlogAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers.authorization;
+  const blogPassword = process.env.BLOG_PASSWORD || process.env.DASHBOARD_PASSWORD || 'admin123';
+
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Blog Management"');
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const base64Credentials = authHeader.split(' ')[1];
+  const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+  const [username, password] = credentials.split(':');
+
+  if (password !== blogPassword) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  next();
+}
+
+// Send admin notification email
+async function sendAdminNotificationEmail(subject: string, htmlBody: string) {
+  if (!process.env.SMTP_USER) {
+    console.warn('[Email] SMTP not configured, skipping admin notification');
+    return;
+  }
+  try {
+    await emailTransporter.sendMail({
+      from: `"M Salman Tahir - Website" <${FROM_EMAIL}>`,
+      to: ADMIN_EMAIL,
+      subject,
+      html: htmlBody,
+    });
+    console.log(`[Email] Admin notification sent: ${subject}`);
+  } catch (error) {
+    console.error('[Email] Failed to send admin notification:', error);
+  }
+}
+
 // API routes for dashboard data
 app.get('/api/dashboard/stats', requireAuth, async (req, res) => {
   try {
@@ -945,6 +1153,664 @@ app.get('/api/dashboard/threads', requireAuth, requireDB, async (req, res) => {
   }
 });
 
+
+// ===== SAFEPAY PAYMENT ROUTES =====
+
+// Create a payment checkout session
+app.post('/api/payment/create', async (req, res) => {
+  const { amount, description, threadId } = req.body;
+
+  if (!amount || amount <= 0) {
+    return res.status(400).json({ error: 'Valid amount is required' });
+  }
+
+  if (!process.env.SAFEPAY_SECRET_KEY) {
+    return res.status(503).json({ error: 'Payment service not configured' });
+  }
+
+  try {
+    // Step 1: Create a payment session (tracker)
+    const session = await safepay.payments.session.setup({
+      merchant_api_key: process.env.SAFEPAY_PUBLIC_KEY,
+      intent: 'CYBERSOURCE',
+      mode: 'payment',
+      currency: 'PKR',
+      amount: amount * 100, // Safepay expects amount in paisa (smallest unit)
+    });
+
+    const tracker = session.data?.tracker?.token;
+    if (!tracker) {
+      throw new Error('Failed to create payment session');
+    }
+
+    // Step 2: Create a passport token (TBT) for client-side auth
+    const passport = await safepay.client.passport.create({});
+    const tbt = passport.data?.token || passport.data;
+    if (!tbt) {
+      throw new Error('Failed to create passport token');
+    }
+
+    // Step 3: Generate the checkout URL
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? 'https://msalmantahir.com'
+      : `http://localhost:${port}`;
+
+    const checkoutUrl = safepay.checkout.createCheckoutUrl({
+      env: SAFEPAY_ENV,
+      tbt,
+      tracker,
+      source: 'hosted',
+      redirect_url: `${baseUrl}/payment/success`,
+      cancel_url: `${baseUrl}/payment/cancel`,
+    });
+
+    // Step 4: Save payment record to database
+    let userId: string | undefined;
+    if (threadId) {
+      try {
+        const userResult = await getOrCreateUserForThread(threadId);
+        userId = userResult.userId;
+      } catch {}
+    }
+
+    try {
+      await createPayment({
+        tracker,
+        threadId: threadId || undefined,
+        userId,
+        amount,
+        currency: 'PKR',
+        description: description || undefined,
+        status: 'pending',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    } catch (dbErr) {
+      console.warn('[Payment] Could not save payment record:', dbErr);
+    }
+
+    console.log(`[Payment] Session created: tracker=${tracker}, amount=${amount} PKR`);
+
+    res.json({
+      checkoutUrl,
+      tracker,
+      amount,
+      currency: 'PKR',
+    });
+  } catch (error: any) {
+    console.error('[Payment] Error creating session:', error?.response?.data || error?.message || error);
+    const message = error?.response?.data?.message || (error instanceof Error ? error.message : 'Payment creation failed');
+    res.status(500).json({ error: message });
+  }
+});
+
+// Payment verification endpoint
+app.post('/api/payment/verify', async (req, res) => {
+  const { tracker, ref, sig } = req.body;
+
+  if (!tracker) {
+    return res.status(400).json({ error: 'Tracker token required' });
+  }
+
+  try {
+    // If user was redirected to success URL with ref, the payment was successful
+    // Safepay redirects to success URL only on successful payments
+    let status: 'completed' | 'failed' | 'cancelled' | 'pending' = 'pending';
+    let verificationData: any = { tracker, ref, sig };
+
+    if (ref) {
+      // User was redirected to success URL with a reference — payment succeeded
+      status = 'completed';
+      console.log(`[Payment] Payment completed: tracker=${tracker}, ref=${ref}`);
+    } else {
+      // Try to check tracker state via Safepay API
+      try {
+        const apiUrl = `${process.env.SAFEPAY_HOST || 'https://sandbox.api.getsafepay.com'}/order/v1/${tracker}`;
+        const apiRes = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${process.env.SAFEPAY_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (apiRes.ok) {
+          const data = await apiRes.json();
+          verificationData = data;
+          const state = data?.data?.state || data?.state || '';
+          console.log(`[Payment] API state for tracker=${tracker}: ${state}`);
+          const stateUpper = state.toUpperCase();
+          if (stateUpper.includes('COMPLETE') || stateUpper.includes('ENDED')) {
+            status = 'completed';
+          } else if (stateUpper.includes('FAIL')) {
+            status = 'failed';
+          } else if (stateUpper.includes('CANCEL')) {
+            status = 'cancelled';
+          }
+        }
+      } catch (apiErr) {
+        console.warn('[Payment] Could not fetch tracker state from API:', apiErr);
+      }
+    }
+
+    // Update payment record in database
+    try {
+      await updatePaymentByTracker(tracker, {
+        status,
+        safepayRef: ref || undefined,
+        safepayData: verificationData,
+      });
+      console.log(`[Payment] Updated tracker=${tracker} to status=${status}`);
+    } catch (dbErr) {
+      console.warn('[Payment] Could not update payment record:', dbErr);
+    }
+
+    // On successful payment: send chat message + emails
+    if (status === 'completed') {
+      try {
+        const paymentRecord = await getPaymentByTracker(tracker);
+        const threadId = paymentRecord?.threadId;
+        const userId = paymentRecord?.userId;
+        const amount = paymentRecord?.amount || 0;
+        const currency = paymentRecord?.currency || 'PKR';
+        const description = paymentRecord?.description;
+
+        // 1. Save a chat message so the agent acknowledges the payment
+        if (threadId && userId) {
+          const paymentMessage = `It looks like you made a payment of ${currency} ${amount.toLocaleString()}. Once we confirm, you will get a call from our support team. Thank you for choosing our services!`;
+          await createChatHistory({
+            threadId,
+            userId,
+            message: '[Payment Completed]',
+            response: paymentMessage,
+            messageType: 'text',
+            createdAt: new Date(),
+          });
+          console.log(`[Payment] Chat message saved for thread=${threadId}`);
+        }
+
+        // 2. Send invoice email to client & notification to admin
+        let clientInfo: { name?: string; phone?: string; email?: string } = {};
+        if (userId) {
+          const user = await getUserById(userId);
+          if (user) {
+            clientInfo = { name: user.name, phone: user.phone, email: user.email };
+          }
+        }
+
+        const paymentDetails = {
+          amount,
+          currency,
+          tracker,
+          description,
+          safepayRef: ref || undefined,
+        };
+
+        // Send invoice to client if email is available
+        if (clientInfo.email) {
+          sendInvoiceEmail(clientInfo.email, paymentDetails);
+        } else {
+          console.log('[Payment] No client email found, skipping invoice email');
+        }
+
+        // Send notification to admin (salmantahir)
+        sendAdminPaymentNotification(paymentDetails, clientInfo);
+      } catch (postPaymentErr) {
+        console.error('[Payment] Post-payment processing error:', postPaymentErr);
+        // Don't fail the response — payment is still verified
+      }
+    }
+
+    res.json({
+      status,
+      tracker,
+      ref: ref || null,
+    });
+  } catch (error) {
+    console.error('[Payment] Verification error:', error);
+    res.status(500).json({ error: 'Payment verification failed' });
+  }
+});
+
+// Payment cancel endpoint — update status when user cancels
+app.post('/api/payment/cancel', async (req, res) => {
+  const { tracker } = req.body;
+
+  if (!tracker) {
+    return res.status(400).json({ error: 'Tracker token required' });
+  }
+
+  try {
+    await updatePaymentByTracker(tracker, {
+      status: 'cancelled',
+    });
+    console.log(`[Payment] Cancelled: tracker=${tracker}`);
+    res.json({ status: 'cancelled', tracker });
+  } catch (dbErr) {
+    console.warn('[Payment] Could not update cancel status:', dbErr);
+    res.json({ status: 'cancelled', tracker });
+  }
+});
+
+// Payment history by thread (for users to see their payment history)
+app.get('/api/payment/history/:threadId', async (req, res) => {
+  const { threadId } = req.params;
+  try {
+    const payments = await getPaymentsByThread(threadId);
+    res.json(payments.map(p => ({
+      id: p._id?.toString(),
+      tracker: p.tracker,
+      amount: p.amount,
+      currency: p.currency,
+      description: p.description,
+      status: p.status,
+      createdAt: p.createdAt,
+    })));
+  } catch (error) {
+    console.error('[Payment] History error:', error);
+    res.status(500).json({ error: 'Failed to load payment history' });
+  }
+});
+
+// Payment status check by tracker (public, no auth needed)
+app.get('/api/payment/status/:tracker', async (req, res) => {
+  const { tracker } = req.params;
+  try {
+    const payment = await getPaymentByTracker(tracker);
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+    res.json({
+      tracker: payment.tracker,
+      amount: payment.amount,
+      currency: payment.currency,
+      description: payment.description,
+      status: payment.status,
+      createdAt: payment.createdAt,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to check payment status' });
+  }
+});
+
+// Dashboard: all payments (admin, requires auth)
+app.get('/api/dashboard/payments', requireAuth, async (req, res) => {
+  try {
+    const payments = await getAllPayments(200);
+    res.json(payments.map(p => ({
+      id: p._id?.toString(),
+      tracker: p.tracker,
+      threadId: p.threadId,
+      userId: p.userId,
+      amount: p.amount,
+      currency: p.currency,
+      description: p.description,
+      status: p.status,
+      safepayRef: p.safepayRef,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    })));
+  } catch (error) {
+    console.error('[Payment] Dashboard error:', error);
+    res.status(500).json({ error: 'Failed to load payments' });
+  }
+});
+
+// Dashboard: payment stats (admin)
+app.get('/api/dashboard/payment-stats', requireAuth, async (req, res) => {
+  try {
+    const stats = await getPaymentStats();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load payment stats' });
+  }
+});
+
+// ==================== Blog API Routes ====================
+
+// Public: Get published blog posts (paginated)
+app.get('/api/blog/posts', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
+    const category = req.query.category as string;
+
+    let result;
+    if (category) {
+      result = await getBlogPostsByCategory(category, page, limit);
+    } else {
+      result = await getPublishedBlogPosts(page, limit);
+    }
+
+    res.json({
+      posts: result.posts.map(p => ({
+        id: p._id?.toString(),
+        title: p.title,
+        slug: p.slug,
+        excerpt: p.excerpt,
+        featuredImage: p.featuredImage,
+        category: p.category,
+        tags: p.tags,
+        publishedAt: p.publishedAt,
+        updatedAt: p.updatedAt,
+      })),
+      total: result.total,
+      page,
+      totalPages: Math.ceil(result.total / limit),
+    });
+  } catch (error) {
+    console.error('Error fetching blog posts:', error);
+    res.status(500).json({ error: 'Failed to load blog posts' });
+  }
+});
+
+// Public: Get blog categories
+app.get('/api/blog/categories', async (_req, res) => {
+  try {
+    const categories = await getBlogCategories();
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load categories' });
+  }
+});
+
+// Public: Get single blog post by slug
+app.get('/api/blog/posts/:slug', async (req, res) => {
+  try {
+    const post = await getBlogPostBySlug(req.params.slug as string);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    res.json({
+      id: post._id?.toString(),
+      title: post.title,
+      slug: post.slug,
+      content: post.content,
+      excerpt: post.excerpt,
+      featuredImage: post.featuredImage,
+      category: post.category,
+      tags: post.tags,
+      metaTitle: post.metaTitle,
+      metaDescription: post.metaDescription,
+      ogImage: post.ogImage,
+      publishedAt: post.publishedAt,
+      updatedAt: post.updatedAt,
+    });
+  } catch (error) {
+    console.error('Error fetching blog post:', error);
+    res.status(500).json({ error: 'Failed to load blog post' });
+  }
+});
+
+// Admin: Get all blog posts (including drafts)
+app.get('/api/dashboard/blog/posts', requireBlogAuth, async (_req, res) => {
+  try {
+    const posts = await getAllBlogPosts();
+    res.json(posts.map(p => ({
+      id: p._id?.toString(),
+      title: p.title,
+      slug: p.slug,
+      excerpt: p.excerpt,
+      featuredImage: p.featuredImage,
+      category: p.category,
+      tags: p.tags,
+      status: p.status,
+      publishedAt: p.publishedAt,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    })));
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load blog posts' });
+  }
+});
+
+// Admin: Get single blog post by ID (for editing)
+app.get('/api/dashboard/blog/posts/:id', requireBlogAuth, async (req, res) => {
+  try {
+    const post = await getBlogPostById(req.params.id as string);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    res.json({
+      id: post._id?.toString(),
+      title: post.title,
+      slug: post.slug,
+      content: post.content,
+      excerpt: post.excerpt,
+      featuredImage: post.featuredImage,
+      category: post.category,
+      tags: post.tags,
+      status: post.status,
+      metaTitle: post.metaTitle,
+      metaDescription: post.metaDescription,
+      ogImage: post.ogImage,
+      publishedAt: post.publishedAt,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load blog post' });
+  }
+});
+
+// Admin: Create blog post
+app.post('/api/dashboard/blog/posts', requireBlogAuth, async (req, res) => {
+  try {
+    const { title, slug, content, excerpt, featuredImage, category, tags, status, metaTitle, metaDescription, ogImage } = req.body;
+
+    if (!title || !slug || !content) {
+      return res.status(400).json({ error: 'Title, slug, and content are required' });
+    }
+
+    // Validate slug format
+    const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+    const now = new Date();
+    const postData = {
+      title,
+      slug: cleanSlug,
+      content,
+      excerpt: excerpt || '',
+      featuredImage: featuredImage || '',
+      category: category || 'General',
+      tags: tags || [],
+      status: status || 'draft',
+      metaTitle: metaTitle || title,
+      metaDescription: metaDescription || excerpt || '',
+      ogImage: ogImage || featuredImage || '',
+      publishedAt: status === 'published' ? now : undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const id = await createBlogPost(postData);
+    res.json({ id, slug: cleanSlug });
+  } catch (error: any) {
+    if (error?.code === 11000) {
+      return res.status(400).json({ error: 'A post with this slug already exists' });
+    }
+    console.error('Error creating blog post:', error);
+    res.status(500).json({ error: 'Failed to create blog post' });
+  }
+});
+
+// Admin: Update blog post
+app.put('/api/dashboard/blog/posts/:id', requireBlogAuth, async (req, res) => {
+  try {
+    const { title, slug, content, excerpt, featuredImage, category, tags, status, metaTitle, metaDescription, ogImage } = req.body;
+
+    const existing = await getBlogPostById(req.params.id as string);
+    if (!existing) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const updates: any = { updatedAt: new Date() };
+    if (title !== undefined) updates.title = title;
+    if (slug !== undefined) updates.slug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    if (content !== undefined) updates.content = content;
+    if (excerpt !== undefined) updates.excerpt = excerpt;
+    if (featuredImage !== undefined) updates.featuredImage = featuredImage;
+    if (category !== undefined) updates.category = category;
+    if (tags !== undefined) updates.tags = tags;
+    if (metaTitle !== undefined) updates.metaTitle = metaTitle;
+    if (metaDescription !== undefined) updates.metaDescription = metaDescription;
+    if (ogImage !== undefined) updates.ogImage = ogImage;
+
+    if (status !== undefined) {
+      updates.status = status;
+      if (status === 'published' && !existing.publishedAt) {
+        updates.publishedAt = new Date();
+      }
+    }
+
+    await updateBlogPost(req.params.id as string, updates);
+    res.json({ success: true });
+  } catch (error: any) {
+    if (error?.code === 11000) {
+      return res.status(400).json({ error: 'A post with this slug already exists' });
+    }
+    console.error('Error updating blog post:', error);
+    res.status(500).json({ error: 'Failed to update blog post' });
+  }
+});
+
+// Admin: Delete blog post
+app.delete('/api/dashboard/blog/posts/:id', requireBlogAuth, async (req, res) => {
+  try {
+    await deleteBlogPost(req.params.id as string);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting blog post:', error);
+    res.status(500).json({ error: 'Failed to delete blog post' });
+  }
+});
+
+// Dynamic sitemap.xml with blog posts
+app.get('/sitemap.xml', async (_req, res) => {
+  try {
+    const blogSlugs = await getAllBlogSlugs();
+    const baseUrl = 'https://msalmantahir.com';
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/#reviews</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/#contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/#success</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/#practice</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/blog</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>`;
+
+    for (const post of blogSlugs) {
+      xml += `
+  <url>
+    <loc>${baseUrl}/blog/${post.slug}</loc>
+    <lastmod>${post.updatedAt.toISOString().split('T')[0]}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+    }
+
+    xml += `
+</urlset>`;
+
+    res.set('Content-Type', 'application/xml');
+    res.send(xml);
+  } catch (error) {
+    // Fallback to static sitemap
+    res.sendFile(path.join(__dirname, '..', 'dist', 'sitemap.xml'));
+  }
+});
+
+// Server-side meta tag injection for blog post SEO (for crawlers)
+app.get('/blog/:slug', async (req, res) => {
+  try {
+    const post = await getBlogPostBySlug(req.params.slug as string);
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
+
+    if (post) {
+      const baseUrl = 'https://msalmantahir.com';
+      const metaTitle = post.metaTitle || post.title;
+      const metaDesc = post.metaDescription || post.excerpt;
+      const ogImage = post.ogImage || post.featuredImage || '';
+
+      // JSON-LD structured data for article
+      const jsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": post.title,
+        "description": metaDesc,
+        "image": ogImage || undefined,
+        "datePublished": post.publishedAt?.toISOString(),
+        "dateModified": post.updatedAt.toISOString(),
+        "author": {
+          "@type": "Person",
+          "name": "M Salman Tahir",
+          "url": baseUrl
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "M Salman Tahir — Advocate",
+          "url": baseUrl
+        },
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": `${baseUrl}/blog/${post.slug}`
+        }
+      });
+
+      // Inject meta tags into HTML
+      const injectedHtml = indexHtml
+        .replace(/<title>.*?<\/title>/, `<title>${metaTitle} — M Salman Tahir</title>`)
+        .replace(
+          '</head>',
+          `<meta name="description" content="${metaDesc.replace(/"/g, '&quot;')}" />
+    <meta property="og:title" content="${metaTitle.replace(/"/g, '&quot;')}" />
+    <meta property="og:description" content="${metaDesc.replace(/"/g, '&quot;')}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="${baseUrl}/blog/${post.slug}" />
+    ${ogImage ? `<meta property="og:image" content="${ogImage}" />` : ''}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${metaTitle.replace(/"/g, '&quot;')}" />
+    <meta name="twitter:description" content="${metaDesc.replace(/"/g, '&quot;')}" />
+    ${ogImage ? `<meta name="twitter:image" content="${ogImage}" />` : ''}
+    <link rel="canonical" href="${baseUrl}/blog/${post.slug}" />
+    <script type="application/ld+json">${jsonLd}</script>
+  </head>`
+        );
+
+      return res.send(injectedHtml);
+    }
+
+    // Post not found — still serve the SPA, let React handle 404
+    res.send(indexHtml);
+  } catch (error) {
+    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  }
+});
 
 // Catch-all handler: serve React app for any unmatched routes
 app.use((req, res) => {
