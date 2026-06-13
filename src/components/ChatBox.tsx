@@ -337,10 +337,13 @@ const send = () => {
     // Remove current thread from localStorage
     localStorage.removeItem('chatThreadId');
     
-    // Start new session
+    // Start new session - reuse existing userId to preserve history
     try {
+      const existingUserId = userId || localStorage.getItem('chatUserId');
       const response = await fetch('/api/chat/start', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: existingUserId }),
       });
       const data = await response.json();
       const newThreadId = data.threadId;

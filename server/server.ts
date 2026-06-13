@@ -573,7 +573,9 @@ app.post('/api/notify/whatsapp-click', async (_req, res) => {
 // Create new user and thread
 app.post('/api/chat/start', requireDB, async (req, res) => {
   try {
-    const userId = await createUser();
+    // Reuse existing userId if provided (e.g. starting a new chat from same browser)
+    const existingUserId = req.body?.userId;
+    const userId = existingUserId || await createUser();
     const threadId = `thread_${Date.now()}_${userId}`;
 
     // Send admin email notification about new chat session
