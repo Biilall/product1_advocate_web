@@ -167,9 +167,9 @@ async function submitToIndexNow(url: string) {
 // Submit URL to Google Indexing API (instant crawling)
 async function submitToGoogleIndexingAPI(url: string, type: 'URL_UPDATED' | 'URL_DELETED' = 'URL_UPDATED') {
   try {
-    const saKeyJson = process.env.GOOGLE_SA_KEY_JSON;
+    const saKeyJson = process.env.GOOGLE_SA_KEY_JSON || process.env.GCP_SA_KEY;
     if (!saKeyJson) {
-      console.warn('[SEO] GOOGLE_SA_KEY_JSON not set, skipping Google Indexing API');
+      console.warn('[SEO] No Google SA key found (GOOGLE_SA_KEY_JSON or GCP_SA_KEY), skipping Google Indexing API');
       return;
     }
 
