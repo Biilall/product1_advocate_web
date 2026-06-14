@@ -11,6 +11,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import ffmpeg from 'fluent-ffmpeg';
 import Safepay from '@sfpy/node-core';
 import nodemailer from 'nodemailer';
+import { GoogleAuth } from 'google-auth-library';
 
 // Import MongoDB operations
 import { initializeDatabase, createUser, getOrCreateUserForThread, createChatHistory, getThreadByThreadId, createThread, getAllUsers, getRecentChatHistory, getAllThreads, getDashboardStats, getChatTopics, getChatTopicsByUser, getChatHistoryByThread, createPayment, updatePaymentByTracker, getPaymentByTracker, getAllPayments, getPaymentStats, getPaymentsByThread, getUserById, createBlogPost, updateBlogPost, deleteBlogPost, getBlogPostById, getBlogPostBySlug, getPublishedBlogPosts, getBlogPostsByCategory, getAllBlogPosts, getBlogCategories, getAllBlogSlugs } from './db-operations.js';
@@ -163,6 +164,40 @@ async function submitToIndexNow(url: string) {
   }
 }
 
+// Submit URL to Google Indexing API (instant crawling)
+async function submitToGoogleIndexingAPI(url: string, type: 'URL_UPDATED' | 'URL_DELETED' = 'URL_UPDATED') {
+  try {
+    const saKeyJson = process.env.GOOGLE_SA_KEY_JSON;
+    if (!saKeyJson) {
+      console.warn('[SEO] GOOGLE_SA_KEY_JSON not set, skipping Google Indexing API');
+      return;
+    }
+
+    const credentials = JSON.parse(saKeyJson);
+    const auth = new GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/indexing'],
+    });
+
+    const client = await auth.getClient();
+    const accessToken = await client.getAccessToken();
+
+    const response = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken.token}`,
+      },
+      body: JSON.stringify({ url, type }),
+    });
+
+    const result = await response.json();
+    console.log(`[SEO] Google Indexing API: ${url} — status: ${response.status}`, result);
+  } catch (err) {
+    console.warn(`[SEO] Google Indexing API failed for ${url}:`, err);
+  }
+}
+
 // Notify search engines about new/updated content
 async function notifySearchEngines(slug: string) {
   const postUrl = `${SITE_BASE_URL}/blog/${slug}`;
@@ -170,6 +205,8 @@ async function notifySearchEngines(slug: string) {
     pingSitemapToSearchEngines(),
     submitToIndexNow(postUrl),
     submitToIndexNow(`${SITE_BASE_URL}/blog`),
+    submitToGoogleIndexingAPI(postUrl),
+    submitToGoogleIndexingAPI(`${SITE_BASE_URL}/blog`),
   ]);
 }
 
