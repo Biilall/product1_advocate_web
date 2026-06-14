@@ -7,7 +7,6 @@ import CTABanner from "@/components/CTABanner";
 import ReviewsSection from "@/components/ReviewsSection";
 import LatestBlogPosts from "@/components/LatestBlogPosts";
 import ContactSection from "@/components/ContactSection";
-import FloatingContact from "@/components/FloatingContact";
 import ChatBox from "@/components/ChatBox";
 
 const Index = () => {
@@ -41,7 +40,6 @@ const Index = () => {
       <LatestBlogPosts />
       <div className="section-divider" />
       <ContactSection />
-      <FloatingContact />
       <ChatBox />
     </main>
   );
