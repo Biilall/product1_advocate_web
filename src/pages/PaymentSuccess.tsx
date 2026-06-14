@@ -9,6 +9,15 @@ const PaymentSuccess = () => {
   const [paymentData, setPaymentData] = useState<any>(null);
 
   useEffect(() => {
+    document.title = "Payment Successful — M Salman Tahir";
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex, nofollow';
+    document.head.appendChild(meta);
+    return () => { document.head.removeChild(meta); };
+  }, []);
+
+  useEffect(() => {
     const tracker = searchParams.get("tracker");
     const ref = searchParams.get("ref");
     const sig = searchParams.get("sig");

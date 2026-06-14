@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import courtImg from "@/assets/lahore-high-court.png";
 import SiteHeader from "@/components/SiteHeader";
 
+const PAGE_TITLE = "Fee Structure — M Salman Tahir | Advocate, High Court of Pakistan";
+
 interface PaymentRecord {
   id: string;
   tracker: string;
@@ -36,6 +38,8 @@ const Fees = () => {
   const [customAmount, setCustomAmount] = useState("");
   const [payingCustom, setPayingCustom] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([]);
+
+  useEffect(() => { document.title = PAGE_TITLE; }, []);
 
   useEffect(() => {
     const threadId = localStorage.getItem("chatThreadId");

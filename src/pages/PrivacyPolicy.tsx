@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
+import { useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 
 const PrivacyPolicy = () => {
+  useEffect(() => { document.title = "Privacy Policy — M Salman Tahir | Advocate"; }, []);
   return (
     <main className="bg-background min-h-screen flex flex-col">
       <SiteHeader />

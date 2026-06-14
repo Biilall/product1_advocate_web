@@ -32,6 +32,15 @@ const PaymentHistory = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    document.title = "Payment History — M Salman Tahir";
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex, nofollow';
+    document.head.appendChild(meta);
+    return () => { document.head.removeChild(meta); };
+  }, []);
+
+  useEffect(() => {
     const threadId = localStorage.getItem("chatThreadId");
     if (threadId) {
       fetch(`/api/payment/history/${threadId}`)

@@ -30,14 +30,14 @@ const HeroSection = () => {
   if (phase === "typing" || phase === "fading") {
     return (
       <section className="min-h-screen flex items-center justify-center bg-foreground">
-        <h1
+        <h2
           className={`text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-serif tracking-wider text-primary-foreground transition-opacity duration-1000 px-4 text-center ${
             phase === "fading" ? "opacity-0" : "opacity-100"
           }`}
         >
           {displayedText}
           <span className="animate-pulse">|</span>
-        </h1>
+        </h2>
       </section>
     );
   }

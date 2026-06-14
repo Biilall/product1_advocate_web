@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import courtImg from "@/assets/lahore-high-court.png";
 import qrBankImage from "@/assets/salman_QR_Bank.jpeg";
@@ -12,6 +12,15 @@ const BankTransferQR = () => {
   const [ifsc, setIfsc] = useState("0140288") 
   const [amount, setAmount] = useState("5000")
   const [note, setNote] = useState("Lawyer Consultation Fee")
+
+  useEffect(() => {
+    document.title = "Bank Transfer — M Salman Tahir | Advocate";
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex, nofollow';
+    document.head.appendChild(meta);
+    return () => { document.head.removeChild(meta); };
+  }, []);
 
   const qrText = useMemo(() => {
     // Basic bank transfer format text (for human and mobile scanner apps)

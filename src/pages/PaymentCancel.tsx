@@ -7,6 +7,15 @@ const PaymentCancel = () => {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
+    document.title = "Payment Cancelled — M Salman Tahir";
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex, nofollow';
+    document.head.appendChild(meta);
+    return () => { document.head.removeChild(meta); };
+  }, []);
+
+  useEffect(() => {
     const tracker = searchParams.get("tracker");
     if (tracker) {
       fetch("/api/payment/cancel", {

@@ -1900,23 +1900,22 @@ app.get('/blog/:slug', async (req, res) => {
         }
       });
 
-      // Inject meta tags into HTML
+      // Inject meta tags into HTML — replace existing homepage tags to avoid duplicates
       const injectedHtml = indexHtml
         .replace(/<title>.*?<\/title>/, `<title>${metaTitle} — M Salman Tahir</title>`)
+        .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="${metaDesc.replace(/"/g, '&quot;')}" />`)
+        .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${baseUrl}/blog/${post.slug}" />`)
+        .replace(/<meta property="og:type"[^>]*>/, `<meta property="og:type" content="article" />`)
+        .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${baseUrl}/blog/${post.slug}" />`)
+        .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${metaTitle.replace(/"/g, '&quot;')}" />`)
+        .replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${metaDesc.replace(/"/g, '&quot;')}" />`)
+        .replace(/<meta property="og:image"[^>]*>/, ogImage ? `<meta property="og:image" content="${ogImage}" />` : '')
+        .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${metaTitle.replace(/"/g, '&quot;')}" />`)
+        .replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${metaDesc.replace(/"/g, '&quot;')}" />`)
+        .replace(/<meta name="twitter:image"[^>]*>/, ogImage ? `<meta name="twitter:image" content="${ogImage}" />` : '')
         .replace(
           '</head>',
-          `<meta name="description" content="${metaDesc.replace(/"/g, '&quot;')}" />
-    <meta property="og:title" content="${metaTitle.replace(/"/g, '&quot;')}" />
-    <meta property="og:description" content="${metaDesc.replace(/"/g, '&quot;')}" />
-    <meta property="og:type" content="article" />
-    <meta property="og:url" content="${baseUrl}/blog/${post.slug}" />
-    ${ogImage ? `<meta property="og:image" content="${ogImage}" />` : ''}
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${metaTitle.replace(/"/g, '&quot;')}" />
-    <meta name="twitter:description" content="${metaDesc.replace(/"/g, '&quot;')}" />
-    ${ogImage ? `<meta name="twitter:image" content="${ogImage}" />` : ''}
-    <link rel="canonical" href="${baseUrl}/blog/${post.slug}" />
-    <script type="application/ld+json">${jsonLd}</script>
+          `<script type="application/ld+json">${jsonLd}</script>
   </head>`
         );
 

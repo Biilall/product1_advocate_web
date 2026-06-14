@@ -49,6 +49,15 @@ const Dashboard = () => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    document.title = "Dashboard — M Salman Tahir";
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex, nofollow';
+    document.head.appendChild(meta);
+    return () => { document.head.removeChild(meta); };
+  }, []);
+
   // Dialog state for user chat history
   const [selectedUserChats, setSelectedUserChats] = useState<Chat[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
