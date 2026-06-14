@@ -4,7 +4,7 @@ const SiteFooter = () => {
   return (
     <footer className="bg-foreground text-primary-foreground">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-8 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-8 mb-10">
           <div>
             <h4 className="font-serif text-base mb-3">M Salman Tahir</h4>
             <p className="font-sans text-sm text-primary-foreground/70 leading-relaxed">
@@ -51,6 +51,26 @@ const SiteFooter = () => {
               </li>
               <li>
                 <Link to="/fees" className="hover:text-primary-foreground transition-colors">Fee Structure</Link>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-serif text-base mb-3">Services</h4>
+            <ul className="space-y-2 font-sans text-sm text-primary-foreground/70">
+              <li>
+                <Link to="/services/criminal-defense" className="hover:text-primary-foreground transition-colors">Criminal Defense</Link>
+              </li>
+              <li>
+                <Link to="/services/civil-litigation" className="hover:text-primary-foreground transition-colors">Civil Litigation</Link>
+              </li>
+              <li>
+                <Link to="/services/family-law" className="hover:text-primary-foreground transition-colors">Family Law</Link>
+              </li>
+              <li>
+                <Link to="/services/corporate-law" className="hover:text-primary-foreground transition-colors">Corporate & Banking</Link>
+              </li>
+              <li>
+                <Link to="/services/intellectual-property" className="hover:text-primary-foreground transition-colors">Intellectual Property</Link>
               </li>
             </ul>
           </div>
