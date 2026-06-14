@@ -72,6 +72,32 @@ const IntellectualProperty = () => {
             </ol>
           </section>
 
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Frequently Asked Questions</h2>
+            <div className="space-y-6 mt-4">
+              {[
+                { q: "How long does trademark registration take in Pakistan?", a: "Trademark registration with IPO Pakistan typically takes 12–18 months from filing to registration. This includes the examination period, publication in the Trademarks Journal (for opposition), and issuance of the registration certificate. However, you get rights from the filing date." },
+                { q: "How much does it cost to register a trademark in Pakistan?", a: "Government filing fees at IPO Pakistan start from approximately PKR 5,000–10,000 per class. Legal fees for preparing and filing the application, conducting prior searches, and handling any objections are additional. Contact us for a complete quote." },
+                { q: "Can I protect my brand name without registering a trademark?", a: "You have some common law protection through use, but it's very limited. Without registration, proving ownership in an infringement case is difficult and expensive. Registration provides prima facie evidence of ownership and exclusive rights nationwide." },
+                { q: "What should I do if someone copies my trademark?", a: "Send a cease and desist notice through a lawyer immediately. If the infringement continues, file a suit for permanent injunction, damages, and delivery up of infringing goods before the Intellectual Property Tribunal. You can also seek interim injunctions for urgent relief." },
+              ].map((faq) => (
+                <div key={faq.q} className="border-l border-border pl-4">
+                  <h3 className="font-serif text-base mb-1">{faq.q}</h3>
+                  <p className="text-sm text-foreground/70 leading-relaxed">{faq.a}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Related Services</h2>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <Link to="/services/corporate-law" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Corporate & Banking Law</Link>
+              <Link to="/services/civil-litigation" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Civil Litigation</Link>
+              <Link to="/services/family-law" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Family Law</Link>
+            </div>
+          </section>
+
           <section className="border-t border-border pt-8">
             <h2 className="text-xl font-serif text-foreground mb-3">Protect Your Intellectual Property</h2>
             <p className="leading-relaxed mb-4">

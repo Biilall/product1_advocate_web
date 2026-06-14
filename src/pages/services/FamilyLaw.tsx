@@ -90,6 +90,32 @@ const FamilyLaw = () => {
             </p>
           </section>
 
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Frequently Asked Questions</h2>
+            <div className="space-y-6 mt-4">
+              {[
+                { q: "How long does khula take in Pakistan?", a: "Khula typically takes 3–6 months from filing to decree. The Family Court first attempts reconciliation through an arbitration council. If reconciliation fails, the case proceeds to evidence and arguments. Having an experienced family lawyer can significantly speed up the process." },
+                { q: "How much does a family lawyer cost in Lahore?", a: "Family court fees start from PKR 10,000–30,000 for simple matters like khula petitions. Complex custody battles or maintenance disputes with multiple hearings may cost more. We provide a clear fee breakdown during the initial consultation." },
+                { q: "Can a mother keep custody of children after divorce in Pakistan?", a: "Under Pakistani law, the mother has the right of hizanat (custody) for sons until age 7 and daughters until puberty. However, the welfare of the child is the paramount consideration, and the court may deviate from this rule based on circumstances." },
+                { q: "What is the difference between talaq and khula?", a: "Talaq is divorce initiated by the husband, while khula is dissolution of marriage initiated by the wife through Family Court. In khula, the wife typically returns her dower (mahr). Both end the marriage, but the legal process and requirements differ." },
+              ].map((faq) => (
+                <div key={faq.q} className="border-l border-border pl-4">
+                  <h3 className="font-serif text-base mb-1">{faq.q}</h3>
+                  <p className="text-sm text-foreground/70 leading-relaxed">{faq.a}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Related Services</h2>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <Link to="/services/criminal-defense" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Criminal Defense</Link>
+              <Link to="/services/civil-litigation" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Civil Litigation</Link>
+              <Link to="/services/intellectual-property" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Intellectual Property</Link>
+            </div>
+          </section>
+
           <section className="border-t border-border pt-8">
             <h2 className="text-xl font-serif text-foreground mb-3">Confidential Consultation</h2>
             <p className="leading-relaxed mb-4">

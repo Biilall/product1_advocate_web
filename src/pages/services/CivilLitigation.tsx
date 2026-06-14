@@ -104,6 +104,32 @@ const CivilLitigation = () => {
             </div>
           </section>
 
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Frequently Asked Questions</h2>
+            <div className="space-y-6 mt-4">
+              {[
+                { q: "How do I resolve a property dispute in Lahore?", a: "Property disputes are resolved through Civil Courts by filing a declaratory suit, possession suit, or partition suit. You need a title document, revenue records, and evidence of ownership. An experienced property lawyer can assess your case and file the appropriate suit." },
+                { q: "How long does a civil case take in Pakistan?", a: "Simple civil suits may take 1–2 years, while complex property disputes or constitutional petitions can take 3–5 years at the trial level. Appeals before the High Court add more time. Using injunctions and settlement negotiations can expedite resolution." },
+                { q: "What is a declaratory suit under Pakistani law?", a: "A declaratory suit under Section 42 of the Specific Relief Act 1877 is filed when a person is entitled to a legal right (e.g., ownership of property) and needs a court declaration to establish that right. It's one of the most common civil suits in Pakistan." },
+                { q: "Can I get an injunction to stop someone from selling my property?", a: "Yes. Under Order XXXIX of the CPC, you can apply for a temporary injunction to restrain a party from transferring, alienating, or dealing with disputed property until the case is decided. This is often filed alongside the main suit." },
+              ].map((faq) => (
+                <div key={faq.q} className="border-l border-border pl-4">
+                  <h3 className="font-serif text-base mb-1">{faq.q}</h3>
+                  <p className="text-sm text-foreground/70 leading-relaxed">{faq.a}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Related Services</h2>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <Link to="/services/criminal-defense" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Criminal Defense</Link>
+              <Link to="/services/family-law" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Family Law</Link>
+              <Link to="/services/corporate-law" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Corporate & Banking Law</Link>
+            </div>
+          </section>
+
           <section className="border-t border-border pt-8">
             <h2 className="text-xl font-serif text-foreground mb-3">Schedule a Consultation</h2>
             <p className="leading-relaxed mb-4">

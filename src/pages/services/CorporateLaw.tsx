@@ -87,6 +87,32 @@ const CorporateLaw = () => {
             </div>
           </section>
 
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Frequently Asked Questions</h2>
+            <div className="space-y-6 mt-4">
+              {[
+                { q: "How do I register a company in Pakistan?", a: "Company registration in Pakistan is done through SECP (Securities and Exchange Commission of Pakistan). You need to reserve a company name, prepare MOA/AOA (Memorandum and Articles of Association), and file incorporation documents. The process takes 2–5 business days with proper documentation." },
+                { q: "What is a banking court in Pakistan?", a: "Banking Courts are specialized courts established under the Financial Institutions (Recovery of Finances) Ordinance 2001. They exclusively handle cases filed by financial institutions for recovery of loans, guarantees, and mortgages. These courts follow expedited procedures with strict timelines." },
+                { q: "Can a business sue for breach of contract in Pakistan?", a: "Yes. Under the Contract Act 1872, a party can sue for breach of contract seeking specific performance, damages, or both. The suit is filed in Civil Court, and the court may award compensatory damages, injunctive relief, or order the breaching party to perform the contract." },
+                { q: "Do I need a lawyer for a partnership agreement?", a: "While not legally required, having a lawyer draft your partnership agreement is strongly recommended. A well-drafted agreement covers profit sharing, dispute resolution, exit clauses, and liability limits — preventing costly disputes later." },
+              ].map((faq) => (
+                <div key={faq.q} className="border-l border-border pl-4">
+                  <h3 className="font-serif text-base mb-1">{faq.q}</h3>
+                  <p className="text-sm text-foreground/70 leading-relaxed">{faq.a}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Related Services</h2>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <Link to="/services/intellectual-property" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Intellectual Property</Link>
+              <Link to="/services/civil-litigation" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Civil Litigation</Link>
+              <Link to="/services/criminal-defense" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Criminal Defense</Link>
+            </div>
+          </section>
+
           <section className="border-t border-border pt-8">
             <h2 className="text-xl font-serif text-foreground mb-3">Corporate Legal Consultation</h2>
             <p className="leading-relaxed mb-4">

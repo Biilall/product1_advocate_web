@@ -100,6 +100,32 @@ const CriminalDefense = () => {
             </div>
           </section>
 
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Frequently Asked Questions</h2>
+            <div className="space-y-6 mt-4">
+              {[
+                { q: "How much does a criminal lawyer cost in Lahore?", a: "Criminal defense fees vary by case complexity. A simple bail application may start from PKR 20,000–50,000, while murder or anti-terrorism cases involve higher fees. Contact us for an exact assessment based on your case." },
+                { q: "Can I get bail for a non-bailable offence in Pakistan?", a: "Yes. While bail is not a right in non-bailable cases, the court can grant bail under Section 497 CrPC based on factors like weak prosecution evidence, no prior criminal record, statutory entitlement, or the accused being a woman or minor." },
+                { q: "What happens after an FIR is registered against me?", a: "After FIR registration, police investigate the matter. If the offence is non-bailable, you may be arrested. You should immediately consult a criminal lawyer to file for pre-arrest bail to prevent detention, or post-arrest bail if already arrested." },
+                { q: "How long does a criminal case take in Pakistan?", a: "Timelines vary significantly. A bail application may be decided within days. A trial in Sessions Court can take 6 months to several years depending on complexity, number of witnesses, and court scheduling." },
+              ].map((faq) => (
+                <div key={faq.q} className="border-l border-border pl-4">
+                  <h3 className="font-serif text-base mb-1">{faq.q}</h3>
+                  <p className="text-sm text-foreground/70 leading-relaxed">{faq.a}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Related Services</h2>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <Link to="/services/civil-litigation" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Civil Litigation</Link>
+              <Link to="/services/family-law" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Family Law</Link>
+              <Link to="/services/corporate-law" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Corporate & Banking Law</Link>
+            </div>
+          </section>
+
           <section className="border-t border-border pt-8">
             <h2 className="text-xl font-serif text-foreground mb-3">Get Legal Help Now</h2>
             <p className="leading-relaxed mb-4">

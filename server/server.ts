@@ -1991,8 +1991,8 @@ app.get('/blog/:slug', async (req, res) => {
   }
 });
 
-// SSR meta injection for static pages (About, Services) — unique meta for crawlers
-const staticPageMeta: Record<string, { title: string; description: string; canonical: string }> = {
+// SSR meta injection for static pages (About, Services, Reviews) — unique meta for crawlers
+const staticPageMeta: Record<string, { title: string; description: string; canonical: string; faqs?: { q: string; a: string }[] }> = {
   '/about': {
     title: 'About M Salman Tahir — Advocate, High Court of Pakistan',
     description: 'M Salman Tahir is a seasoned Advocate enrolled with the Lahore High Court, practising since 2016 in criminal defense, civil litigation, family law, and corporate law. 87% favorable outcome rate.',
@@ -2007,26 +2007,56 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
     title: 'Criminal Defense Lawyer Lahore — Bail, Murder, Anti-Terrorism Cases | M Salman Tahir',
     description: 'Expert criminal defense in Lahore. Bail applications, murder defense, anti-terrorism cases, narcotics, cybercrime. 87% success rate. Advocate M Salman Tahir, High Court of Pakistan.',
     canonical: 'https://msalmantahir.com/services/criminal-defense',
+    faqs: [
+      { q: 'How much does a criminal lawyer cost in Lahore?', a: 'Criminal defense fees vary by case complexity. A simple bail application may start from PKR 20,000–50,000, while murder or anti-terrorism cases involve higher fees. Contact us for an exact assessment based on your case.' },
+      { q: 'Can I get bail for a non-bailable offence in Pakistan?', a: 'Yes. While bail is not a right in non-bailable cases, the court can grant bail under Section 497 CrPC based on factors like weak prosecution evidence, no prior criminal record, statutory entitlement, or the accused being a woman or minor.' },
+      { q: 'What happens after an FIR is registered against me?', a: 'After FIR registration, police investigate the matter. If the offence is non-bailable, you may be arrested. You should immediately consult a criminal lawyer to file for pre-arrest bail to prevent detention, or post-arrest bail if already arrested.' },
+      { q: 'How long does a criminal case take in Pakistan?', a: 'Timelines vary significantly. A bail application may be decided within days. A trial in Sessions Court can take 6 months to several years depending on complexity, number of witnesses, and court scheduling.' },
+    ],
   },
   '/services/civil-litigation': {
     title: 'Civil Litigation Lawyer Lahore — Property Disputes, Contract Cases | M Salman Tahir',
     description: 'Civil litigation in Lahore — property disputes, contract enforcement, constitutional petitions, recovery suits. Advocate M Salman Tahir, practising before District Courts and Lahore High Court.',
     canonical: 'https://msalmantahir.com/services/civil-litigation',
+    faqs: [
+      { q: 'How do I resolve a property dispute in Lahore?', a: 'Property disputes are resolved through Civil Courts by filing a declaratory suit, possession suit, or partition suit. You need a title document, revenue records, and evidence of ownership. An experienced property lawyer can assess your case and file the appropriate suit.' },
+      { q: 'How long does a civil case take in Pakistan?', a: 'Simple civil suits may take 1–2 years, while complex property disputes or constitutional petitions can take 3–5 years at the trial level. Appeals before the High Court add more time. Using injunctions and settlement negotiations can expedite resolution.' },
+      { q: 'What is a declaratory suit under Pakistani law?', a: 'A declaratory suit under Section 42 of the Specific Relief Act 1877 is filed when a person is entitled to a legal right (e.g., ownership of property) and needs a court declaration to establish that right.' },
+      { q: 'Can I get an injunction to stop someone from selling my property?', a: 'Yes. Under Order XXXIX of the CPC, you can apply for a temporary injunction to restrain a party from transferring, alienating, or dealing with disputed property until the case is decided.' },
+    ],
   },
   '/services/family-law': {
     title: 'Family Lawyer Lahore — Divorce, Khula, Child Custody | M Salman Tahir',
     description: 'Family law services in Lahore — khula, divorce, child custody, maintenance claims, dower recovery. Compassionate representation before Family Courts. Advocate M Salman Tahir.',
     canonical: 'https://msalmantahir.com/services/family-law',
+    faqs: [
+      { q: 'How long does khula take in Pakistan?', a: 'Khula typically takes 3–6 months from filing to decree. The Family Court first attempts reconciliation through an arbitration council. If reconciliation fails, the case proceeds to evidence and arguments.' },
+      { q: 'How much does a family lawyer cost in Lahore?', a: 'Family court fees start from PKR 10,000–30,000 for simple matters like khula petitions. Complex custody battles or maintenance disputes with multiple hearings may cost more.' },
+      { q: 'Can a mother keep custody of children after divorce in Pakistan?', a: 'Under Pakistani law, the mother has the right of hizanat (custody) for sons until age 7 and daughters until puberty. However, the welfare of the child is the paramount consideration.' },
+      { q: 'What is the difference between talaq and khula?', a: 'Talaq is divorce initiated by the husband, while khula is dissolution of marriage initiated by the wife through Family Court. In khula, the wife typically returns her dower (mahr).' },
+    ],
   },
   '/services/corporate-law': {
     title: 'Corporate & Banking Lawyer Lahore — Commercial Disputes | M Salman Tahir',
     description: 'Corporate and banking law in Lahore — company formation, commercial disputes, banking court litigation, contract drafting. Advocate M Salman Tahir, High Court of Pakistan.',
     canonical: 'https://msalmantahir.com/services/corporate-law',
+    faqs: [
+      { q: 'How do I register a company in Pakistan?', a: 'Company registration in Pakistan is done through SECP. You need to reserve a company name, prepare MOA/AOA, and file incorporation documents. The process takes 2–5 business days with proper documentation.' },
+      { q: 'What is a banking court in Pakistan?', a: 'Banking Courts are specialized courts under the Financial Institutions (Recovery of Finances) Ordinance 2001. They exclusively handle cases filed by financial institutions for recovery of loans, guarantees, and mortgages.' },
+      { q: 'Can a business sue for breach of contract in Pakistan?', a: 'Yes. Under the Contract Act 1872, a party can sue for breach of contract seeking specific performance, damages, or both. The suit is filed in Civil Court.' },
+      { q: 'Do I need a lawyer for a partnership agreement?', a: 'While not legally required, having a lawyer draft your partnership agreement is strongly recommended. A well-drafted agreement covers profit sharing, dispute resolution, exit clauses, and liability limits.' },
+    ],
   },
   '/services/intellectual-property': {
     title: 'Intellectual Property Lawyer Lahore — Trademark, Copyright | M Salman Tahir',
     description: 'IP legal services in Lahore — trademark registration, copyright protection, patent advisory, IP enforcement. Advocate M Salman Tahir, practising since 2016.',
     canonical: 'https://msalmantahir.com/services/intellectual-property',
+    faqs: [
+      { q: 'How long does trademark registration take in Pakistan?', a: 'Trademark registration with IPO Pakistan typically takes 12–18 months from filing to registration, including examination, publication in the Trademarks Journal, and issuance of the registration certificate.' },
+      { q: 'How much does it cost to register a trademark in Pakistan?', a: 'Government filing fees at IPO Pakistan start from approximately PKR 5,000–10,000 per class. Legal fees for preparing and filing the application are additional.' },
+      { q: 'Can I protect my brand name without registering a trademark?', a: 'You have some common law protection through use, but it is very limited. Without registration, proving ownership in an infringement case is difficult. Registration provides prima facie evidence of ownership.' },
+      { q: 'What should I do if someone copies my trademark?', a: 'Send a cease and desist notice through a lawyer immediately. If the infringement continues, file a suit for permanent injunction, damages, and delivery up of infringing goods before the Intellectual Property Tribunal.' },
+    ],
   },
 };
 
@@ -2037,7 +2067,7 @@ app.get(['/about', '/reviews', '/services/:service'], (req, res) => {
     const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
 
     if (meta) {
-      const injectedHtml = indexHtml
+      let injectedHtml = indexHtml
         .replace(/<title>.*?<\/title>/, `<title>${meta.title}</title>`)
         .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="${meta.description}" />`)
         .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${meta.canonical}" />`)
@@ -2046,6 +2076,21 @@ app.get(['/about', '/reviews', '/services/:service'], (req, res) => {
         .replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${meta.description}" />`)
         .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${meta.title}" />`)
         .replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${meta.description}" />`);
+
+      // Inject FAQPage schema if FAQs exist for this page
+      if (meta.faqs && meta.faqs.length > 0) {
+        const faqSchema = JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": meta.faqs.map(f => ({
+            "@type": "Question",
+            "name": f.q,
+            "acceptedAnswer": { "@type": "Answer", "text": f.a }
+          }))
+        });
+        injectedHtml = injectedHtml.replace('</head>', `<script type="application/ld+json">${faqSchema}</script>\n  </head>`);
+      }
+
       return res.send(injectedHtml);
     }
 
