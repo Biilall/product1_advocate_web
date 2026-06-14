@@ -167,9 +167,13 @@ async function submitToIndexNow(url: string) {
 // Submit URL to Google Indexing API (instant crawling)
 async function submitToGoogleIndexingAPI(url: string, type: 'URL_UPDATED' | 'URL_DELETED' = 'URL_UPDATED') {
   try {
-    const saKeyJson = process.env.GOOGLE_SA_KEY_JSON || process.env.GCP_SA_KEY;
+    // Support base64-encoded key (from Cloud Run), plain JSON, or env var
+    let saKeyJson = process.env.GOOGLE_SA_KEY_JSON || process.env.GCP_SA_KEY;
+    if (!saKeyJson && process.env.GOOGLE_SA_KEY_B64) {
+      saKeyJson = Buffer.from(process.env.GOOGLE_SA_KEY_B64, 'base64').toString('utf-8');
+    }
     if (!saKeyJson) {
-      console.warn('[SEO] No Google SA key found (GOOGLE_SA_KEY_JSON or GCP_SA_KEY), skipping Google Indexing API');
+      console.warn('[SEO] No Google SA key found, skipping Google Indexing API');
       return;
     }
 
