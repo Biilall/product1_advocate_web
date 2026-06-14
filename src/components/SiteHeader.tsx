@@ -24,6 +24,12 @@ const SiteHeader = () => {
           >
             Blog
           </Link>
+          <Link
+            to="/about"
+            className={`hover:text-primary-foreground transition-colors ${isActive("/about") ? "text-primary-foreground" : ""}`}
+          >
+            About
+          </Link>
           <a
             href="/#contact"
             className="hover:text-primary-foreground transition-colors"

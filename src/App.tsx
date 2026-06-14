@@ -18,6 +18,7 @@ import PaymentHistory from "./pages/PaymentHistory.tsx";
 import BlogList from "./pages/BlogList.tsx";
 import BlogPostPage from "./pages/BlogPostPage.tsx";
 import BlogManagement from "./pages/BlogManagement.tsx";
+import About from "./pages/About.tsx";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ const App = () => (
           <Route path="/terms-and-conditions" element={<TermsConditions />} />
           <Route path="/blog" element={<BlogList />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
+          <Route path="/about" element={<About />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

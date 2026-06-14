@@ -69,6 +69,7 @@ const HeroSection = () => {
           <a href="#reviews" className="hover:text-primary-foreground transition-colors">Clients</a>
           <a href="#contact" className="hover:text-primary-foreground transition-colors">Contact</a>
           <Link to="/blog" className="hover:text-primary-foreground transition-colors">Blog</Link>
+          <Link to="/about" className="hover:text-primary-foreground transition-colors">About</Link>
         </nav>
       </div>
     </section>
