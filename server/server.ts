@@ -124,6 +124,55 @@ const emailTransporter = nodemailer.createTransport({
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'salmantahir@msalmantahir.com';
 const FROM_EMAIL = process.env.FROM_EMAIL || process.env.SMTP_USER || 'noreply@msalmantahir.com';
 
+const SITE_BASE_URL = 'https://msalmantahir.com';
+const INDEXNOW_KEY = process.env.INDEXNOW_KEY || 'b7f4a9c2e1d34f5a8b6c0d9e2f1a3b5c';
+
+// Ping search engines when content changes
+async function pingSitemapToSearchEngines() {
+  const sitemapUrl = encodeURIComponent(`${SITE_BASE_URL}/sitemap.xml`);
+  const pingUrls = [
+    `https://www.google.com/ping?sitemap=${sitemapUrl}`,
+    `https://www.bing.com/ping?sitemap=${sitemapUrl}`,
+  ];
+
+  for (const url of pingUrls) {
+    try {
+      await fetch(url);
+      console.log(`[SEO] Pinged: ${url}`);
+    } catch (err) {
+      console.warn(`[SEO] Failed to ping: ${url}`);
+    }
+  }
+}
+
+// Submit URL to IndexNow (Bing, Yandex, Naver, etc.)
+async function submitToIndexNow(url: string) {
+  try {
+    const response = await fetch('https://api.indexnow.org/indexnow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        host: 'msalmantahir.com',
+        key: INDEXNOW_KEY,
+        urlList: [url],
+      }),
+    });
+    console.log(`[SEO] IndexNow submitted ${url} — status: ${response.status}`);
+  } catch (err) {
+    console.warn(`[SEO] IndexNow failed for ${url}`);
+  }
+}
+
+// Notify search engines about new/updated content
+async function notifySearchEngines(slug: string) {
+  const postUrl = `${SITE_BASE_URL}/blog/${slug}`;
+  await Promise.all([
+    pingSitemapToSearchEngines(),
+    submitToIndexNow(postUrl),
+    submitToIndexNow(`${SITE_BASE_URL}/blog`),
+  ]);
+}
+
 // Send invoice email to client
 async function sendInvoiceEmail(toEmail: string, payment: { amount: number; currency: string; tracker: string; description?: string; safepayRef?: string }) {
   if (!process.env.SMTP_USER) {
@@ -1624,6 +1673,12 @@ app.post('/api/dashboard/blog/posts', requireBlogAuth, async (req, res) => {
     };
 
     const id = await createBlogPost(postData);
+
+    // Ping search engines if published
+    if (status === 'published') {
+      notifySearchEngines(cleanSlug).catch(() => {});
+    }
+
     res.json({ id, slug: cleanSlug });
   } catch (error: any) {
     if (error?.code === 11000) {
@@ -1664,6 +1719,13 @@ app.put('/api/dashboard/blog/posts/:id', requireBlogAuth, async (req, res) => {
     }
 
     await updateBlogPost(req.params.id as string, updates);
+
+    // Ping search engines if post is/was published
+    if (status === 'published' || existing.status === 'published') {
+      const finalSlug = updates.slug || existing.slug;
+      notifySearchEngines(finalSlug).catch(() => {});
+    }
+
     res.json({ success: true });
   } catch (error: any) {
     if (error?.code === 11000) {
