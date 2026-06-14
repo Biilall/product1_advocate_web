@@ -48,10 +48,8 @@ jobs:
              --memory 1Gi
 
       - name: Set Google SA Key (base64 encoded to avoid shell issues)
-        env:
-          GCP_SA_KEY_VALUE: ${{ secrets.GCP_SA_KEY }}
         run: |
-          ENCODED=$(echo "$GCP_SA_KEY_VALUE" | base64 | tr -d '\n')
+          ENCODED=$(echo -n '${{ secrets.GOOGLE_SA_KEY_JSON }}' | base64 -w 0)
           gcloud run services update nextjs-app \
             --region europe-west1 \
             --update-env-vars "GOOGLE_SA_KEY_B64=$ENCODED"
