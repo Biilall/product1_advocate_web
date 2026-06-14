@@ -2093,17 +2093,52 @@ app.get('/blog/:slug', async (req, res) => {
   }
 });
 
-// SSR meta injection for static pages (About, Services, Reviews) — unique meta for crawlers
+// SSR meta injection for static pages (About, Services, Reviews, Blog listing, Fees, Legal pages) — unique meta for crawlers
 const staticPageMeta: Record<string, { title: string; description: string; canonical: string; faqs?: { q: string; a: string }[] }> = {
   '/about': {
     title: 'About M Salman Tahir — Advocate, High Court of Pakistan',
     description: 'M Salman Tahir is a seasoned Advocate enrolled with the Lahore High Court, practising since 2016 in criminal defense, civil litigation, family law, and corporate law. 87% favorable outcome rate.',
     canonical: 'https://msalmantahir.com/about',
   },
+  '/blog': {
+    title: 'Legal Blog — Pakistan Law Articles & Guides | M Salman Tahir, Advocate',
+    description: 'Read expert legal articles on criminal defense, bail procedures, family law, property disputes, and corporate law in Pakistan. Written by Advocate M Salman Tahir, High Court of Pakistan.',
+    canonical: 'https://msalmantahir.com/blog',
+  },
   '/reviews': {
     title: 'Client Reviews — M Salman Tahir | Advocate, High Court of Pakistan',
     description: 'Read what clients say about Advocate M Salman Tahir. 4.8/5 rating across criminal defense, civil litigation, family law, and corporate law cases in Lahore.',
     canonical: 'https://msalmantahir.com/reviews',
+  },
+  '/fees': {
+    title: 'Legal Fee Structure — Consultation & Case Fees | M Salman Tahir, Advocate Lahore',
+    description: 'Transparent legal fee structure for consultation, criminal defense, civil litigation, family law, and corporate law services. Advocate M Salman Tahir, High Court of Pakistan, Lahore.',
+    canonical: 'https://msalmantahir.com/fees',
+  },
+  '/privacy-policy': {
+    title: 'Privacy Policy — M Salman Tahir, Advocate',
+    description: 'Privacy policy for msalmantahir.com. Learn how Advocate M Salman Tahir collects, uses, and protects your personal information.',
+    canonical: 'https://msalmantahir.com/privacy-policy',
+  },
+  '/refund-policy': {
+    title: 'Refund & Return Policy — M Salman Tahir, Advocate',
+    description: 'Refund and return policy for legal services provided by Advocate M Salman Tahir. Understand our terms for consultation fees and service charges.',
+    canonical: 'https://msalmantahir.com/refund-policy',
+  },
+  '/service-policy': {
+    title: 'Service Delivery Policy — M Salman Tahir, Advocate',
+    description: 'Service delivery policy outlining how legal services are provided by Advocate M Salman Tahir, including timelines, communication, and case management procedures.',
+    canonical: 'https://msalmantahir.com/service-policy',
+  },
+  '/terms-and-conditions': {
+    title: 'Terms & Conditions — M Salman Tahir, Advocate',
+    description: 'Terms and conditions for using msalmantahir.com and engaging legal services from Advocate M Salman Tahir, High Court of Pakistan.',
+    canonical: 'https://msalmantahir.com/terms-and-conditions',
+  },
+  '/bank-transfer-qr': {
+    title: 'Bank Transfer & QR Payment — M Salman Tahir, Advocate',
+    description: 'Make secure payments via bank transfer or QR code for legal services by Advocate M Salman Tahir. View account details and payment instructions.',
+    canonical: 'https://msalmantahir.com/bank-transfer-qr',
   },
   '/services/criminal-defense': {
     title: 'Criminal Defense Lawyer Lahore — Bail, Murder, Anti-Terrorism Cases | M Salman Tahir',
@@ -2162,7 +2197,7 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
   },
 };
 
-app.get(['/about', '/reviews', '/services/:service'], (req, res) => {
+app.get(['/about', '/blog', '/reviews', '/fees', '/privacy-policy', '/refund-policy', '/service-policy', '/terms-and-conditions', '/bank-transfer-qr', '/services/:service'], (req, res) => {
   try {
     const pagePath = req.path;
     const meta = staticPageMeta[pagePath];
