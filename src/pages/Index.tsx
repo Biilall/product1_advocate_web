@@ -3,6 +3,7 @@ import HeroSection from "@/components/HeroSection";
 import PracticeAreas from "@/components/PracticeAreas";
 import SuccessSection from "@/components/SuccessSection";
 import ReviewsSection from "@/components/ReviewsSection";
+import LatestBlogPosts from "@/components/LatestBlogPosts";
 import ContactSection from "@/components/ContactSection";
 import ChatBox from "@/components/ChatBox";
 
@@ -30,6 +31,8 @@ const Index = () => {
       <SuccessSection />
       <div className="section-divider" />
       <ReviewsSection />
+      <div className="section-divider" />
+      <LatestBlogPosts />
       <div className="section-divider" />
       <ContactSection />
       <ChatBox />
