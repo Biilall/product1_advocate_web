@@ -1,10 +1,13 @@
 import { Link } from "react-router-dom";
 import HeroSection from "@/components/HeroSection";
+import AboutSummary from "@/components/AboutSummary";
 import PracticeAreas from "@/components/PracticeAreas";
 import SuccessSection from "@/components/SuccessSection";
+import CTABanner from "@/components/CTABanner";
 import ReviewsSection from "@/components/ReviewsSection";
 import LatestBlogPosts from "@/components/LatestBlogPosts";
 import ContactSection from "@/components/ContactSection";
+import FloatingContact from "@/components/FloatingContact";
 import ChatBox from "@/components/ChatBox";
 
 const Index = () => {
@@ -25,16 +28,20 @@ const Index = () => {
         </Link>
       </div> */}
       <HeroSection />
+      <div id="about-section" className="section-divider" />
+      <AboutSummary />
       <div className="section-divider" />
       <PracticeAreas />
       <div className="section-divider" />
       <SuccessSection />
+      <CTABanner />
       <div className="section-divider" />
       <ReviewsSection />
       <div className="section-divider" />
       <LatestBlogPosts />
       <div className="section-divider" />
       <ContactSection />
+      <FloatingContact />
       <ChatBox />
     </main>
   );

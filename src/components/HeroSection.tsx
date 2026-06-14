@@ -64,13 +64,22 @@ const HeroSection = () => {
           precision, and an unwavering commitment to the rule of law.
         </p>
         <nav className="mt-8 sm:mt-10 flex flex-wrap gap-4 sm:gap-8 font-sans text-xs sm:text-sm tracking-[0.2em] uppercase text-primary-foreground/60">
-          <a href="#practice" className="hover:text-primary-foreground transition-colors">Practice</a>
+          <a href="#about-section" className="hover:text-primary-foreground transition-colors">About</a>
+          <a href="#practice" className="hover:text-primary-foreground transition-colors">Services</a>
           <a href="#success" className="hover:text-primary-foreground transition-colors">Record</a>
           <Link to="/reviews" className="hover:text-primary-foreground transition-colors">Reviews</Link>
           <a href="#contact" className="hover:text-primary-foreground transition-colors">Contact</a>
           <Link to="/blog" className="hover:text-primary-foreground transition-colors">Blog</Link>
-          <Link to="/about" className="hover:text-primary-foreground transition-colors">About</Link>
         </nav>
+
+        {/* Scroll indicator */}
+        <div className="mt-12 sm:mt-16 flex justify-start animate-bounce">
+          <a href="#about-section" aria-label="Scroll down" className="text-primary-foreground/40 hover:text-primary-foreground/70 transition-colors">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M12 5v14M5 12l7 7 7-7" />
+            </svg>
+          </a>
+        </div>
       </div>
     </section>
   );
