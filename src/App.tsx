@@ -22,6 +22,7 @@ const BlogList = lazy(() => import("./pages/BlogList.tsx"));
 const BlogPostPage = lazy(() => import("./pages/BlogPostPage.tsx"));
 const BlogManagement = lazy(() => import("./pages/BlogManagement.tsx"));
 const About = lazy(() => import("./pages/About.tsx"));
+const ClientReviews = lazy(() => import("./pages/ClientReviews.tsx"));
 const CriminalDefense = lazy(() => import("./pages/services/CriminalDefense.tsx"));
 const CivilLitigation = lazy(() => import("./pages/services/CivilLitigation.tsx"));
 const FamilyLaw = lazy(() => import("./pages/services/FamilyLaw.tsx"));
@@ -53,6 +54,7 @@ const App = () => (
           <Route path="/blog" element={<BlogList />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/about" element={<About />} />
+          <Route path="/reviews" element={<ClientReviews />} />
           <Route path="/services/criminal-defense" element={<CriminalDefense />} />
           <Route path="/services/civil-litigation" element={<CivilLitigation />} />
           <Route path="/services/family-law" element={<FamilyLaw />} />

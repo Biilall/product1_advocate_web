@@ -1815,6 +1815,11 @@ app.get('/sitemap.xml', async (_req, res) => {
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>${baseUrl}/reviews</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>${baseUrl}/services/criminal-defense</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -1993,6 +1998,11 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
     description: 'M Salman Tahir is a seasoned Advocate enrolled with the Lahore High Court, practising since 2016 in criminal defense, civil litigation, family law, and corporate law. 87% favorable outcome rate.',
     canonical: 'https://msalmantahir.com/about',
   },
+  '/reviews': {
+    title: 'Client Reviews — M Salman Tahir | Advocate, High Court of Pakistan',
+    description: 'Read what clients say about Advocate M Salman Tahir. 4.8/5 rating across criminal defense, civil litigation, family law, and corporate law cases in Lahore.',
+    canonical: 'https://msalmantahir.com/reviews',
+  },
   '/services/criminal-defense': {
     title: 'Criminal Defense Lawyer Lahore — Bail, Murder, Anti-Terrorism Cases | M Salman Tahir',
     description: 'Expert criminal defense in Lahore. Bail applications, murder defense, anti-terrorism cases, narcotics, cybercrime. 87% success rate. Advocate M Salman Tahir, High Court of Pakistan.',
@@ -2020,7 +2030,7 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
   },
 };
 
-app.get(['/about', '/services/:service'], (req, res) => {
+app.get(['/about', '/reviews', '/services/:service'], (req, res) => {
   try {
     const pagePath = req.path;
     const meta = staticPageMeta[pagePath];

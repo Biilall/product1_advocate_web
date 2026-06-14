@@ -52,6 +52,9 @@ const SiteFooter = () => {
               <li>
                 <Link to="/fees" className="hover:text-primary-foreground transition-colors">Fee Structure</Link>
               </li>
+              <li>
+                <Link to="/reviews" className="hover:text-primary-foreground transition-colors">Client Reviews</Link>
+              </li>
             </ul>
           </div>
           <div>

@@ -53,6 +53,12 @@ const SiteHeader = () => {
           >
             About
           </Link>
+          <Link
+            to="/reviews"
+            className={`hover:text-primary-foreground transition-colors ${isActive("/reviews") ? "text-primary-foreground" : ""}`}
+          >
+            Reviews
+          </Link>
           <a
             href="/#contact"
             className="hover:text-primary-foreground transition-colors"

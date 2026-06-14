@@ -66,7 +66,7 @@ const HeroSection = () => {
         <nav className="mt-8 sm:mt-10 flex flex-wrap gap-4 sm:gap-8 font-sans text-xs sm:text-sm tracking-[0.2em] uppercase text-primary-foreground/60">
           <a href="#practice" className="hover:text-primary-foreground transition-colors">Practice</a>
           <a href="#success" className="hover:text-primary-foreground transition-colors">Record</a>
-          <a href="#reviews" className="hover:text-primary-foreground transition-colors">Clients</a>
+          <Link to="/reviews" className="hover:text-primary-foreground transition-colors">Reviews</Link>
           <a href="#contact" className="hover:text-primary-foreground transition-colors">Contact</a>
           <Link to="/blog" className="hover:text-primary-foreground transition-colors">Blog</Link>
           <Link to="/about" className="hover:text-primary-foreground transition-colors">About</Link>
