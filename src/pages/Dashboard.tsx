@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, MessageSquare, Hash, UserCheck, RefreshCw, Bot, Play, CheckCircle, XCircle, Clock, SkipForward } from "lucide-react";
+import { Users, MessageSquare, Hash, UserCheck, RefreshCw, Bot, Play, CheckCircle, XCircle, Clock, SkipForward, Search } from "lucide-react";
 
 
 interface User {
@@ -79,6 +79,8 @@ const Dashboard = () => {
   const [contentJobs, setContentJobs] = useState<ContentJob[]>([]);
   const [contentJobStats, setContentJobStats] = useState<ContentJobStats | null>(null);
   const [triggeringJob, setTriggeringJob] = useState(false);
+  const [requestingIndexing, setRequestingIndexing] = useState(false);
+  const [indexingResult, setIndexingResult] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = "Dashboard — M Salman Tahir";
@@ -167,6 +169,23 @@ const Dashboard = () => {
     setChats([]);
     setContentJobs([]);
     setContentJobStats(null);
+  };
+
+  const handleRequestIndexing = async () => {
+    setRequestingIndexing(true);
+    setIndexingResult(null);
+    try {
+      const res = await fetch("/api/dashboard/request-indexing", {
+        method: "POST",
+        headers: { Authorization: getAuthHeader() },
+      });
+      const data = await res.json();
+      setIndexingResult(`Submitted ${data.totalUrls} URLs for indexing`);
+    } catch {
+      setIndexingResult("Failed to request indexing");
+    } finally {
+      setRequestingIndexing(false);
+    }
   };
 
   const handleTriggerContentJob = async () => {
@@ -280,6 +299,10 @@ const Dashboard = () => {
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
+            <Button onClick={handleRequestIndexing} disabled={requestingIndexing} variant="outline">
+              <Search className={`w-4 h-4 mr-2 ${requestingIndexing ? 'animate-pulse' : ''}`} />
+              {requestingIndexing ? 'Submitting...' : 'Request Indexing'}
+            </Button>
             <Link to="/dashboard/blog">
               <Button variant="outline">Blog Manager</Button>
             </Link>
@@ -291,6 +314,13 @@ const Dashboard = () => {
             </Link>
           </div>
         </div>
+
+        {indexingResult && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm flex items-center justify-between">
+            <span>{indexingResult}</span>
+            <button onClick={() => setIndexingResult(null)} className="text-green-600 hover:text-green-800">✕</button>
+          </div>
+        )}
 
         {/* Stats Cards */}
         {stats && (

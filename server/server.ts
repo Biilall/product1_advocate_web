@@ -1789,6 +1789,72 @@ app.delete('/api/dashboard/blog/posts/:id', requireBlogAuth, async (req, res) =>
   }
 });
 
+// ==================== Bulk Indexing Request ====================
+
+// Submit ALL sitemap URLs to Google Indexing API + IndexNow for immediate crawling
+app.post('/api/dashboard/request-indexing', requireAuth, async (_req, res) => {
+  try {
+    // Fetch the live sitemap and extract all URLs (stays in sync automatically)
+    const allUrls: string[] = [];
+    try {
+      const sitemapRes = await fetch(`${SITE_BASE_URL}/sitemap.xml`);
+      const sitemapXml = await sitemapRes.text();
+      const locMatches = sitemapXml.match(/<loc>(.*?)<\/loc>/g) || [];
+      for (const match of locMatches) {
+        const url = match.replace(/<\/?loc>/g, '');
+        if (url) allUrls.push(url);
+      }
+    } catch (err) {
+      console.warn('[SEO] Failed to fetch sitemap, using fallback static list');
+      // Fallback: hardcoded static pages + blog slugs
+      const staticPages = ['/', '/blog', '/about', '/reviews', '/fees',
+        '/services/criminal-defense', '/services/civil-litigation', '/services/family-law',
+        '/services/corporate-law', '/services/intellectual-property',
+        '/privacy-policy', '/refund-policy', '/service-policy', '/terms-and-conditions', '/bank-transfer-qr'];
+      for (const p of staticPages) allUrls.push(`${SITE_BASE_URL}${p}`);
+      const blogSlugs = await getAllBlogSlugs();
+      for (const { slug } of blogSlugs) allUrls.push(`${SITE_BASE_URL}/blog/${slug}`);
+    }
+
+    console.log(`[SEO] Bulk indexing request for ${allUrls.length} URLs...`);
+
+    const results: { url: string; google: string; indexnow: string }[] = [];
+
+    for (const url of allUrls) {
+      let googleStatus = 'skipped';
+      let indexnowStatus = 'skipped';
+
+      try {
+        await submitToGoogleIndexingAPI(url);
+        googleStatus = 'submitted';
+      } catch { googleStatus = 'failed'; }
+
+      try {
+        await submitToIndexNow(url);
+        indexnowStatus = 'submitted';
+      } catch { indexnowStatus = 'failed'; }
+
+      results.push({ url, google: googleStatus, indexnow: indexnowStatus });
+
+      // Rate limit: 200ms between requests
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    // Also ping sitemap
+    await pingSitemapToSearchEngines();
+
+    console.log(`[SEO] Bulk indexing complete: ${results.length} URLs submitted`);
+    res.json({
+      message: `Submitted ${results.length} URLs for indexing`,
+      totalUrls: results.length,
+      results,
+    });
+  } catch (error) {
+    console.error('Error in bulk indexing:', error);
+    res.status(500).json({ error: 'Failed to submit URLs for indexing' });
+  }
+});
+
 // ==================== Content Automation Job Endpoints ====================
 
 // Get content job logs
