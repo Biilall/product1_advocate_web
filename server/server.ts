@@ -2012,6 +2012,26 @@ app.get('/blog/:slug', async (req, res) => {
       const metaDesc = post.metaDescription || post.excerpt;
       const ogImage = post.ogImage || post.featuredImage || '';
 
+      // Shared author entity for E-E-A-T (AEO/GEO)
+      const authorEntity = {
+        "@type": "Person",
+        "name": "M Salman Tahir",
+        "url": baseUrl,
+        "jobTitle": "Advocate, High Court of Pakistan",
+        "description": "Practising advocate enrolled with the Lahore High Court since 2016, specializing in criminal defense, civil litigation, family law, and corporate law.",
+        "alumniOf": { "@type": "EducationalOrganization", "name": "University of the Punjab" },
+        "memberOf": [
+          { "@type": "Organization", "name": "Lahore Bar Association" },
+          { "@type": "Organization", "name": "Pakistan Bar Council" }
+        ],
+        "knowsAbout": ["Criminal Law", "Civil Litigation", "Family Law", "Corporate Law", "Intellectual Property", "Bail Applications", "Property Disputes"],
+        "sameAs": [
+          "https://www.facebook.com/SalmanTahirAdvocate",
+          "https://www.linkedin.com/in/m-salman-tahir",
+          "https://www.instagram.com/salmantahir_advocate"
+        ]
+      };
+
       // JSON-LD structured data for article
       const jsonLd = JSON.stringify({
         "@context": "https://schema.org",
@@ -2021,20 +2041,23 @@ app.get('/blog/:slug', async (req, res) => {
         "image": ogImage || undefined,
         "datePublished": post.publishedAt?.toISOString(),
         "dateModified": post.updatedAt.toISOString(),
-        "author": {
-          "@type": "Person",
-          "name": "M Salman Tahir",
-          "url": baseUrl
-        },
+        "author": authorEntity,
         "publisher": {
           "@type": "Organization",
           "name": "M Salman Tahir — Advocate",
-          "url": baseUrl
+          "url": baseUrl,
+          "logo": { "@type": "ImageObject", "url": `${baseUrl}/assets/salman-avatar-Dd5Eh-XE.png` }
         },
         "mainEntityOfPage": {
           "@type": "WebPage",
           "@id": `${baseUrl}/blog/${post.slug}`
-        }
+        },
+        "speakable": {
+          "@type": "SpeakableSpecification",
+          "cssSelector": ["h1", ".blog-excerpt", ".blog-content p:first-of-type"]
+        },
+        "inLanguage": "en",
+        "isAccessibleForFree": true
       });
 
       // BreadcrumbList JSON-LD for blog post
@@ -2063,6 +2086,52 @@ app.get('/blog/:slug', async (req, res) => {
         ]
       });
 
+      // HowTo JSON-LD for procedural blog posts (AEO — step extraction by AI)
+      const howToSlugs: Record<string, { name: string; description: string; steps: { name: string; text: string }[] }> = {
+        'khula-procedure-pakistan-guide': {
+          name: 'How to File for Khula in Pakistan',
+          description: 'Step-by-step procedure for filing khula (wife-initiated divorce) in Pakistan through Family Court.',
+          steps: [
+            { name: 'Consult a Family Lawyer', text: 'Consult an experienced family lawyer who can assess your case, explain your rights regarding dower (mahr), maintenance, custody, and dowry articles.' },
+            { name: 'File the Suit for Dissolution', text: 'Your lawyer files a Suit for Dissolution of Marriage before the Family Court having jurisdiction, including Nikahnama copy, grounds for khula, and dower details.' },
+            { name: 'Court Notice to Husband', text: 'The Family Court issues notice to the husband, summoning him to appear and file a written reply.' },
+            { name: 'Pre-trial Reconciliation', text: 'The court appoints a reconciliation committee and schedules a hearing. The committee has 30-60 days to attempt reconciliation.' },
+            { name: 'Evidence and Arguments', text: 'Both parties present their evidence and arguments. The wife\'s statement under oath about her inability to live with the husband is typically the key evidence.' },
+            { name: 'Decree of Khula', text: 'If the court is satisfied that reconciliation is impossible, it grants a decree of dissolution by way of khula. The wife usually returns the dower (mahr).' }
+          ]
+        },
+        'bail-process-pakistan-complete-guide': {
+          name: 'How to Get Bail in Pakistan',
+          description: 'Step-by-step process for obtaining bail in Pakistan under the Code of Criminal Procedure (CrPC) 1898.',
+          steps: [
+            { name: 'Engage a Criminal Lawyer', text: 'Immediately contact an experienced advocate who specializes in criminal defense and bail applications.' },
+            { name: 'File the Bail Application', text: 'Your lawyer prepares and files the bail petition with supporting documents before the Sessions Court or High Court.' },
+            { name: 'Court Hearing', text: 'The court hears arguments from both the defense and prosecution regarding the merits of bail.' },
+            { name: 'Court Order', text: 'The court either grants bail with conditions or refuses it. If refused, you can appeal to the High Court.' },
+            { name: 'Furnish Surety Bonds', text: 'If bail is granted, you furnish surety bonds as directed by the court.' },
+            { name: 'Release from Custody', text: 'Upon verification of surety bonds, the accused is released from custody.' }
+          ]
+        }
+      };
+
+      let howToSchema = '';
+      const howToData = howToSlugs[post.slug];
+      if (howToData) {
+        howToSchema = `<script type="application/ld+json">${JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "HowTo",
+          "name": howToData.name,
+          "description": howToData.description,
+          "totalTime": post.slug.includes('khula') ? 'P180D' : 'P14D',
+          "step": howToData.steps.map((s, i) => ({
+            "@type": "HowToStep",
+            "position": i + 1,
+            "name": s.name,
+            "text": s.text
+          }))
+        })}</script>\n  `;
+      }
+
       // Inject meta tags into HTML — replace existing homepage tags to avoid duplicates
       const injectedHtml = indexHtml
         .replace(/<title>.*?<\/title>/, `<title>${metaTitle} — M Salman Tahir</title>`)
@@ -2080,7 +2149,7 @@ app.get('/blog/:slug', async (req, res) => {
           '</head>',
           `<script type="application/ld+json">${jsonLd}</script>
   <script type="application/ld+json">${breadcrumbLd}</script>
-  </head>`
+  ${howToSchema}</head>`
         );
 
       return res.send(injectedHtml);
@@ -2226,6 +2295,73 @@ app.get(['/about', '/blog', '/reviews', '/fees', '/privacy-policy', '/refund-pol
           }))
         });
         injectedHtml = injectedHtml.replace('</head>', `<script type="application/ld+json">${faqSchema}</script>\n  </head>`);
+      }
+
+      // BreadcrumbList JSON-LD for service and static pages (AEO)
+      if (pagePath.startsWith('/services/')) {
+        const serviceName = meta.title.split('—')[0]?.trim() || pagePath.split('/').pop();
+        const breadcrumbLd = JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://msalmantahir.com" },
+            { "@type": "ListItem", "position": 2, "name": "Services", "item": "https://msalmantahir.com/#practice" },
+            { "@type": "ListItem", "position": 3, "name": serviceName, "item": meta.canonical }
+          ]
+        });
+        injectedHtml = injectedHtml.replace('</head>', `<script type="application/ld+json">${breadcrumbLd}</script>\n  </head>`);
+      }
+
+      // ProfilePage schema for /about (GEO — entity recognition)
+      if (pagePath === '/about') {
+        const profileSchema = JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "ProfilePage",
+          "mainEntity": {
+            "@type": "Person",
+            "name": "M Salman Tahir",
+            "jobTitle": "Advocate, High Court of Pakistan",
+            "description": "Practising advocate enrolled with the Lahore High Court since 2016, specializing in criminal defense, civil litigation, family law, and corporate law. 87% favorable outcome rate.",
+            "url": "https://msalmantahir.com",
+            "image": "https://msalmantahir.com/assets/salman-avatar-Dd5Eh-XE.png",
+            "telephone": "+923006829799",
+            "email": "Salman.tahir14@yahoo.com",
+            "alumniOf": { "@type": "EducationalOrganization", "name": "University of the Punjab" },
+            "memberOf": [
+              { "@type": "Organization", "name": "Lahore Bar Association" },
+              { "@type": "Organization", "name": "Pakistan Bar Council" }
+            ],
+            "knowsAbout": ["Criminal Law", "Civil Litigation", "Family Law", "Corporate Law", "Intellectual Property", "Bail Applications", "Property Disputes"],
+            "sameAs": [
+              "https://www.facebook.com/SalmanTahirAdvocate",
+              "https://www.linkedin.com/in/m-salman-tahir",
+              "https://www.instagram.com/salmantahir_advocate"
+            ],
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "Office No. 401, 4th Floor, Qureshi Building, Lower Mall Road",
+              "addressLocality": "Lahore",
+              "addressRegion": "Punjab",
+              "addressCountry": "PK"
+            }
+          }
+        });
+        injectedHtml = injectedHtml.replace('</head>', `<script type="application/ld+json">${profileSchema}</script>\n  </head>`);
+      }
+
+      // Speakable schema for key pages (AEO — voice assistant optimization)
+      if (['/about', '/blog', '/reviews', '/fees'].includes(pagePath) || pagePath.startsWith('/services/')) {
+        const speakableSchema = JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          "name": meta.title,
+          "speakable": {
+            "@type": "SpeakableSpecification",
+            "cssSelector": ["h1", "h2", ".faq-answer", "p:first-of-type"]
+          },
+          "url": meta.canonical
+        });
+        injectedHtml = injectedHtml.replace('</head>', `<script type="application/ld+json">${speakableSchema}</script>\n  </head>`);
       }
 
       return res.send(injectedHtml);
