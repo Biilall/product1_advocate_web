@@ -403,8 +403,18 @@ const Dashboard = () => {
                           {job.status === 'running' && <Badge className="bg-blue-100 text-blue-800"><Clock className="w-3 h-3 mr-1" />Running</Badge>}
                           {job.status === 'skipped' && <Badge className="bg-yellow-100 text-yellow-800"><SkipForward className="w-3 h-3 mr-1" />Skipped</Badge>}
                         </TableCell>
-                        <TableCell className="max-w-[250px] truncate" title={job.generatedTitle || job.sourceTitle}>
-                          {job.generatedTitle || job.sourceTitle || '-'}
+                        <TableCell className="max-w-[250px]" title={job.generatedTitle || job.sourceTitle}>
+                          <div className="truncate">{job.generatedTitle || job.sourceTitle || '-'}</div>
+                          {job.status === 'failed' && job.error && (
+                            <div className="text-[11px] text-red-600 mt-1 truncate" title={job.error}>
+                              Error: {job.error}
+                            </div>
+                          )}
+                          {job.status === 'failed' && job.sourceUrl && (
+                            <div className="text-[10px] text-gray-400 mt-0.5 truncate" title={job.sourceUrl}>
+                              {job.sourceUrl.replace('https://joshandmakinternational.com/', '/')}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>{job.category || '-'}</TableCell>
                         <TableCell className="max-w-[150px]">
