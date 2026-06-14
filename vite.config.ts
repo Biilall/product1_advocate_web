@@ -19,6 +19,24 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-accordion',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-select',
+          ],
+          query: ['@tanstack/react-query'],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tsconfigPaths({ projects: ['tsconfig.app.json'] }) // specify your config

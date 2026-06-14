@@ -1815,6 +1815,31 @@ app.get('/sitemap.xml', async (_req, res) => {
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>${baseUrl}/services/criminal-defense</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/services/civil-litigation</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/services/family-law</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/services/corporate-law</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/services/intellectual-property</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>${baseUrl}/fees</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -1905,6 +1930,32 @@ app.get('/blog/:slug', async (req, res) => {
         }
       });
 
+      // BreadcrumbList JSON-LD for blog post
+      const breadcrumbLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": baseUrl
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Blog",
+            "item": `${baseUrl}/blog`
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": post.title,
+            "item": `${baseUrl}/blog/${post.slug}`
+          }
+        ]
+      });
+
       // Inject meta tags into HTML — replace existing homepage tags to avoid duplicates
       const injectedHtml = indexHtml
         .replace(/<title>.*?<\/title>/, `<title>${metaTitle} — M Salman Tahir</title>`)
@@ -1921,6 +1972,7 @@ app.get('/blog/:slug', async (req, res) => {
         .replace(
           '</head>',
           `<script type="application/ld+json">${jsonLd}</script>
+  <script type="application/ld+json">${breadcrumbLd}</script>
   </head>`
         );
 
@@ -1928,6 +1980,65 @@ app.get('/blog/:slug', async (req, res) => {
     }
 
     // Post not found — still serve the SPA, let React handle 404
+    res.send(indexHtml);
+  } catch (error) {
+    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  }
+});
+
+// SSR meta injection for static pages (About, Services) — unique meta for crawlers
+const staticPageMeta: Record<string, { title: string; description: string; canonical: string }> = {
+  '/about': {
+    title: 'About M Salman Tahir — Advocate, High Court of Pakistan',
+    description: 'M Salman Tahir is a seasoned Advocate enrolled with the Lahore High Court, practising since 2016 in criminal defense, civil litigation, family law, and corporate law. 87% favorable outcome rate.',
+    canonical: 'https://msalmantahir.com/about',
+  },
+  '/services/criminal-defense': {
+    title: 'Criminal Defense Lawyer Lahore — Bail, Murder, Anti-Terrorism Cases | M Salman Tahir',
+    description: 'Expert criminal defense in Lahore. Bail applications, murder defense, anti-terrorism cases, narcotics, cybercrime. 87% success rate. Advocate M Salman Tahir, High Court of Pakistan.',
+    canonical: 'https://msalmantahir.com/services/criminal-defense',
+  },
+  '/services/civil-litigation': {
+    title: 'Civil Litigation Lawyer Lahore — Property Disputes, Contract Cases | M Salman Tahir',
+    description: 'Civil litigation in Lahore — property disputes, contract enforcement, constitutional petitions, recovery suits. Advocate M Salman Tahir, practising before District Courts and Lahore High Court.',
+    canonical: 'https://msalmantahir.com/services/civil-litigation',
+  },
+  '/services/family-law': {
+    title: 'Family Lawyer Lahore — Divorce, Khula, Child Custody | M Salman Tahir',
+    description: 'Family law services in Lahore — khula, divorce, child custody, maintenance claims, dower recovery. Compassionate representation before Family Courts. Advocate M Salman Tahir.',
+    canonical: 'https://msalmantahir.com/services/family-law',
+  },
+  '/services/corporate-law': {
+    title: 'Corporate & Banking Lawyer Lahore — Commercial Disputes | M Salman Tahir',
+    description: 'Corporate and banking law in Lahore — company formation, commercial disputes, banking court litigation, contract drafting. Advocate M Salman Tahir, High Court of Pakistan.',
+    canonical: 'https://msalmantahir.com/services/corporate-law',
+  },
+  '/services/intellectual-property': {
+    title: 'Intellectual Property Lawyer Lahore — Trademark, Copyright | M Salman Tahir',
+    description: 'IP legal services in Lahore — trademark registration, copyright protection, patent advisory, IP enforcement. Advocate M Salman Tahir, practising since 2016.',
+    canonical: 'https://msalmantahir.com/services/intellectual-property',
+  },
+};
+
+app.get(['/about', '/services/:service'], (req, res) => {
+  try {
+    const pagePath = req.path;
+    const meta = staticPageMeta[pagePath];
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
+
+    if (meta) {
+      const injectedHtml = indexHtml
+        .replace(/<title>.*?<\/title>/, `<title>${meta.title}</title>`)
+        .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="${meta.description}" />`)
+        .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${meta.canonical}" />`)
+        .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${meta.canonical}" />`)
+        .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${meta.title}" />`)
+        .replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${meta.description}" />`)
+        .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${meta.title}" />`)
+        .replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${meta.description}" />`);
+      return res.send(injectedHtml);
+    }
+
     res.send(indexHtml);
   } catch (error) {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));

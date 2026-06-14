@@ -1,24 +1,32 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
-import BankTransferQR from "./pages/BankTransferQR.tsx";
-import Fees from "./pages/Fees.tsx";
-import Dashboard from "./pages/Dashboard.tsx";
 import NotFound from "./pages/NotFound.tsx";
-import PrivacyPolicy from "./pages/PrivacyPolicy.tsx";
-import RefundPolicy from "./pages/RefundPolicy.tsx";
-import ServicePolicy from "./pages/ServicePolicy.tsx";
-import TermsConditions from "./pages/TermsConditions.tsx";
-import PaymentSuccess from "./pages/PaymentSuccess.tsx";
-import PaymentCancel from "./pages/PaymentCancel.tsx";
-import PaymentHistory from "./pages/PaymentHistory.tsx";
-import BlogList from "./pages/BlogList.tsx";
-import BlogPostPage from "./pages/BlogPostPage.tsx";
-import BlogManagement from "./pages/BlogManagement.tsx";
-import About from "./pages/About.tsx";
+
+// Lazy-loaded pages (code-split)
+const BankTransferQR = lazy(() => import("./pages/BankTransferQR.tsx"));
+const Fees = lazy(() => import("./pages/Fees.tsx"));
+const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy.tsx"));
+const RefundPolicy = lazy(() => import("./pages/RefundPolicy.tsx"));
+const ServicePolicy = lazy(() => import("./pages/ServicePolicy.tsx"));
+const TermsConditions = lazy(() => import("./pages/TermsConditions.tsx"));
+const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess.tsx"));
+const PaymentCancel = lazy(() => import("./pages/PaymentCancel.tsx"));
+const PaymentHistory = lazy(() => import("./pages/PaymentHistory.tsx"));
+const BlogList = lazy(() => import("./pages/BlogList.tsx"));
+const BlogPostPage = lazy(() => import("./pages/BlogPostPage.tsx"));
+const BlogManagement = lazy(() => import("./pages/BlogManagement.tsx"));
+const About = lazy(() => import("./pages/About.tsx"));
+const CriminalDefense = lazy(() => import("./pages/services/CriminalDefense.tsx"));
+const CivilLitigation = lazy(() => import("./pages/services/CivilLitigation.tsx"));
+const FamilyLaw = lazy(() => import("./pages/services/FamilyLaw.tsx"));
+const CorporateLaw = lazy(() => import("./pages/services/CorporateLaw.tsx"));
+const IntellectualProperty = lazy(() => import("./pages/services/IntellectualProperty.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -28,6 +36,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <Suspense fallback={<div className="min-h-screen" />}>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/bank-transfer-qr" element={<BankTransferQR />} />
@@ -44,9 +53,15 @@ const App = () => (
           <Route path="/blog" element={<BlogList />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/about" element={<About />} />
+          <Route path="/services/criminal-defense" element={<CriminalDefense />} />
+          <Route path="/services/civil-litigation" element={<CivilLitigation />} />
+          <Route path="/services/family-law" element={<FamilyLaw />} />
+          <Route path="/services/corporate-law" element={<CorporateLaw />} />
+          <Route path="/services/intellectual-property" element={<IntellectualProperty />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
