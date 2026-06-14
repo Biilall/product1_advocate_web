@@ -82,10 +82,12 @@ const SiteHeader = () => {
               Services <ChevronDown size={12} />
             </button>
             {servicesOpen && (
-              <div className="absolute top-full left-0 mt-2 w-56 bg-foreground border border-primary-foreground/20 rounded shadow-lg py-2 z-50">
-                {serviceLinks.map((s) => (
-                  <Link key={s.to} to={s.to} className="block px-4 py-2 text-xs tracking-[0.15em] hover:bg-primary-foreground/10 transition-colors">{s.label}</Link>
-                ))}
+              <div className="absolute top-full left-0 pt-2 w-56 z-50">
+                <div className="bg-foreground border border-primary-foreground/20 rounded shadow-lg py-2">
+                  {serviceLinks.map((s) => (
+                    <Link key={s.to} to={s.to} className="block px-4 py-2 text-xs tracking-[0.15em] hover:bg-primary-foreground/10 transition-colors">{s.label}</Link>
+                  ))}
+                </div>
               </div>
             )}
           </div>
