@@ -15,6 +15,7 @@ import { GoogleAuth } from 'google-auth-library';
 
 // Import MongoDB operations
 import { initializeDatabase, createUser, getOrCreateUserForThread, createChatHistory, getThreadByThreadId, createThread, getAllUsers, getRecentChatHistory, getAllThreads, getDashboardStats, getChatTopics, getChatTopicsByUser, getChatHistoryByThread, createPayment, updatePaymentByTracker, getPaymentByTracker, getAllPayments, getPaymentStats, getPaymentsByThread, getUserById, createBlogPost, updateBlogPost, deleteBlogPost, getBlogPostById, getBlogPostBySlug, getPublishedBlogPosts, getBlogPostsByCategory, getAllBlogPosts, getBlogCategories, getAllBlogSlugs } from './db-operations.js';
+import { startContentAutomation, triggerContentJob, getContentJobStats, getContentJobLogs } from './content-automation.js';
 type ChatHistoryRow = {
   _id: string;
   threadId: string;
@@ -1788,6 +1789,41 @@ app.delete('/api/dashboard/blog/posts/:id', requireBlogAuth, async (req, res) =>
   }
 });
 
+// ==================== Content Automation Job Endpoints ====================
+
+// Get content job logs
+app.get('/api/dashboard/content-jobs', requireAuth, async (_req, res) => {
+  try {
+    const logs = await getContentJobLogs(100);
+    res.json(logs);
+  } catch (error) {
+    console.error('Error fetching content job logs:', error);
+    res.status(500).json({ error: 'Failed to fetch content job logs' });
+  }
+});
+
+// Get content job stats
+app.get('/api/dashboard/content-jobs/stats', requireAuth, async (_req, res) => {
+  try {
+    const stats = await getContentJobStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching content job stats:', error);
+    res.status(500).json({ error: 'Failed to fetch content job stats' });
+  }
+});
+
+// Manually trigger a content job
+app.post('/api/dashboard/content-jobs/trigger', requireAuth, async (_req, res) => {
+  try {
+    const result = await triggerContentJob();
+    res.json(result);
+  } catch (error) {
+    console.error('Error triggering content job:', error);
+    res.status(500).json({ error: 'Failed to trigger content job' });
+  }
+});
+
 // Dynamic sitemap.xml with blog posts
 app.get('/sitemap.xml', async (_req, res) => {
   try {
@@ -2107,4 +2143,11 @@ app.use((req, res) => {
 
 app.listen(port, "0.0.0.0", () => {
   console.log("Server started on", port);
+
+  // Start content automation background job (5 times per day)
+  if (process.env.OPENAI_API_KEY) {
+    startContentAutomation();
+  } else {
+    console.log('[ContentJob] ⚠️ OPENAI_API_KEY not set, content automation disabled');
+  }
 });

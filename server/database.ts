@@ -62,6 +62,24 @@ export interface BlogPost {
   updatedAt: Date;
 }
 
+export interface ContentJob {
+  _id?: ObjectId;
+  status: 'running' | 'success' | 'failed' | 'skipped';
+  sourceUrl: string;
+  sourceTitle: string;
+  generatedTitle?: string;
+  generatedSlug?: string;
+  blogPostId?: string;
+  category?: string;
+  tags?: string[];
+  keywordsUsed?: string[];
+  hasUrduVersion: boolean;
+  error?: string;
+  durationMs?: number;
+  startedAt: Date;
+  completedAt?: Date;
+}
+
 class Database {
   private client: MongoClient;
   private db: Db | null = null;
@@ -74,6 +92,7 @@ class Database {
   public threads!: Collection<Thread>;
   public payments!: Collection<Payment>;
   public blogPosts!: Collection<BlogPost>;
+  public contentJobs!: Collection<ContentJob>;
 
   constructor() {
     this.mongoUrl = process.env.MONGODB_URI || process.env.MONGODB_URL || 'mongodb://REDACTED_USER:REDACTED_PASSWORD@127.0.0.1:27017/law_nexus_chat?authSource=admin';
@@ -116,6 +135,7 @@ class Database {
       this.threads = this.db.collection<Thread>('threads');
       this.payments = this.db.collection<Payment>('payments');
       this.blogPosts = this.db.collection<BlogPost>('blog_posts');
+      this.contentJobs = this.db.collection<ContentJob>('content_jobs');
 
       // Create indexes for better performance
       await this.createIndexes();
@@ -159,6 +179,11 @@ class Database {
       await this.blogPosts.createIndex({ category: 1 });
       await this.blogPosts.createIndex({ publishedAt: -1 });
       await this.blogPosts.createIndex({ createdAt: -1 });
+
+      // Content jobs indexes
+      await this.contentJobs.createIndex({ startedAt: -1 });
+      await this.contentJobs.createIndex({ status: 1 });
+      await this.contentJobs.createIndex({ sourceUrl: 1 });
 
       console.log('✅ Database indexes created');
     } catch (error) {

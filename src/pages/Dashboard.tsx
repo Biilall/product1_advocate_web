@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, MessageSquare, Hash, UserCheck, RefreshCw } from "lucide-react";
+import { Users, MessageSquare, Hash, UserCheck, RefreshCw, Bot, Play, CheckCircle, XCircle, Clock, SkipForward } from "lucide-react";
 
 
 interface User {
@@ -38,6 +38,34 @@ interface Stats {
   infoCollected: number;
 }
 
+interface ContentJob {
+  _id: string;
+  status: 'running' | 'success' | 'failed' | 'skipped';
+  sourceUrl: string;
+  sourceTitle: string;
+  generatedTitle?: string;
+  generatedSlug?: string;
+  blogPostId?: string;
+  category?: string;
+  tags?: string[];
+  keywordsUsed?: string[];
+  hasUrduVersion: boolean;
+  error?: string;
+  durationMs?: number;
+  startedAt: string;
+  completedAt?: string;
+}
+
+interface ContentJobStats {
+  total: number;
+  success: number;
+  failed: number;
+  skipped: number;
+  running: number;
+  avgDurationMs: number;
+  lastRun: string | null;
+}
+
 const Dashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
@@ -48,6 +76,9 @@ const Dashboard = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(false);
+  const [contentJobs, setContentJobs] = useState<ContentJob[]>([]);
+  const [contentJobStats, setContentJobStats] = useState<ContentJobStats | null>(null);
+  const [triggeringJob, setTriggeringJob] = useState(false);
 
   useEffect(() => {
     document.title = "Dashboard — M Salman Tahir";
@@ -108,6 +139,18 @@ const Dashboard = () => {
       setStats(statsData);
       setUsers(usersData);
       setChats(chatsData);
+
+      // Load content job data
+      try {
+        const [jobsRes, jobStatsRes] = await Promise.all([
+          fetch("/api/dashboard/content-jobs", { headers }),
+          fetch("/api/dashboard/content-jobs/stats", { headers })
+        ]);
+        if (jobsRes.ok) setContentJobs(await jobsRes.json());
+        if (jobStatsRes.ok) setContentJobStats(await jobStatsRes.json());
+      } catch {
+        console.error("Error loading content job data");
+      }
     } catch (error) {
       console.error("Error loading dashboard data:", error);
       setError("Failed to load dashboard data");
@@ -122,6 +165,31 @@ const Dashboard = () => {
     setStats(null);
     setUsers([]);
     setChats([]);
+    setContentJobs([]);
+    setContentJobStats(null);
+  };
+
+  const handleTriggerContentJob = async () => {
+    setTriggeringJob(true);
+    try {
+      const res = await fetch("/api/dashboard/content-jobs/trigger", {
+        method: "POST",
+        headers: { Authorization: getAuthHeader() },
+      });
+      if (res.ok) {
+        // Reload content job data
+        const [jobsRes, jobStatsRes] = await Promise.all([
+          fetch("/api/dashboard/content-jobs", { headers: { Authorization: getAuthHeader() } }),
+          fetch("/api/dashboard/content-jobs/stats", { headers: { Authorization: getAuthHeader() } })
+        ]);
+        if (jobsRes.ok) setContentJobs(await jobsRes.json());
+        if (jobStatsRes.ok) setContentJobStats(await jobStatsRes.json());
+      }
+    } catch {
+      console.error("Error triggering content job");
+    } finally {
+      setTriggeringJob(false);
+    }
   };
 
   // Group chats by user and get last message for each user
@@ -268,6 +336,97 @@ const Dashboard = () => {
             </Card>
           </div>
         )}
+
+        {/* Content Automation Section */}
+        <Card className="mb-8">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="h-5 w-5" />
+                Content Automation Jobs
+              </CardTitle>
+              <p className="text-sm text-gray-500 mt-1">Automated content generation runs 5 times per day</p>
+            </div>
+            <Button onClick={handleTriggerContentJob} disabled={triggeringJob} size="sm">
+              <Play className={`w-4 h-4 mr-2 ${triggeringJob ? 'animate-pulse' : ''}`} />
+              {triggeringJob ? 'Running...' : 'Run Now'}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {/* Job Stats */}
+            {contentJobStats && (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                <div className="bg-green-50 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-green-700">{contentJobStats.success}</div>
+                  <div className="text-xs text-green-600">Success</div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-red-700">{contentJobStats.failed}</div>
+                  <div className="text-xs text-red-600">Failed</div>
+                </div>
+                <div className="bg-yellow-50 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-yellow-700">{contentJobStats.skipped}</div>
+                  <div className="text-xs text-yellow-600">Skipped</div>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-blue-700">{contentJobStats.running}</div>
+                  <div className="text-xs text-blue-600">Running</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-gray-700">{contentJobStats.avgDurationMs ? `${(contentJobStats.avgDurationMs / 1000).toFixed(1)}s` : '-'}</div>
+                  <div className="text-xs text-gray-600">Avg Duration</div>
+                </div>
+              </div>
+            )}
+
+            {/* Job Logs Table */}
+            {contentJobs.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Generated Title</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Keywords</TableHead>
+                      <TableHead>Urdu</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Time</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contentJobs.slice(0, 20).map((job) => (
+                      <TableRow key={job._id}>
+                        <TableCell>
+                          {job.status === 'success' && <Badge className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />Success</Badge>}
+                          {job.status === 'failed' && <Badge className="bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1" />Failed</Badge>}
+                          {job.status === 'running' && <Badge className="bg-blue-100 text-blue-800"><Clock className="w-3 h-3 mr-1" />Running</Badge>}
+                          {job.status === 'skipped' && <Badge className="bg-yellow-100 text-yellow-800"><SkipForward className="w-3 h-3 mr-1" />Skipped</Badge>}
+                        </TableCell>
+                        <TableCell className="max-w-[250px] truncate" title={job.generatedTitle || job.sourceTitle}>
+                          {job.generatedTitle || job.sourceTitle || '-'}
+                        </TableCell>
+                        <TableCell>{job.category || '-'}</TableCell>
+                        <TableCell className="max-w-[150px]">
+                          <div className="flex flex-wrap gap-1">
+                            {(job.keywordsUsed || []).slice(0, 2).map((kw, i) => (
+                              <Badge key={i} variant="outline" className="text-[10px] py-0">{kw}</Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell>{job.hasUrduVersion ? '✅' : '❌'}</TableCell>
+                        <TableCell>{job.durationMs ? `${(job.durationMs / 1000).toFixed(1)}s` : '-'}</TableCell>
+                        <TableCell className="text-xs">{new Date(job.startedAt).toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No content jobs yet. Click "Run Now" to generate your first article.</p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Users Table */}
         <Card className="mb-8">
