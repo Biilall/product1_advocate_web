@@ -2133,6 +2133,19 @@ app.get('/blog/:slug', async (req, res) => {
       }
 
       // Inject meta tags into HTML — replace existing homepage tags to avoid duplicates
+      // CRITICAL: Also inject article content into body for crawlers/LLMs that don't execute JS
+      const articleHtml = `
+    <article id="ssr-article" style="display:none" class="blog-content">
+      <h1>${post.title}</h1>
+      <p class="blog-excerpt">${metaDesc}</p>
+      <div class="blog-body">${post.content}</div>
+      <footer>
+        <p>Author: M Salman Tahir — Advocate, High Court of Pakistan</p>
+        <p>Published: ${post.publishedAt?.toISOString().split('T')[0] || ''}</p>
+        <p><a href="tel:+923006829799">+92 300 6829799</a> | <a href="https://msalmantahir.com/#contact">Contact for Consultation</a></p>
+      </footer>
+    </article>`;
+
       const injectedHtml = indexHtml
         .replace(/<title>.*?<\/title>/, `<title>${metaTitle} — M Salman Tahir</title>`)
         .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="${metaDesc.replace(/"/g, '&quot;')}" />`)
@@ -2145,6 +2158,7 @@ app.get('/blog/:slug', async (req, res) => {
         .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${metaTitle.replace(/"/g, '&quot;')}" />`)
         .replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${metaDesc.replace(/"/g, '&quot;')}" />`)
         .replace(/<meta name="twitter:image"[^>]*>/, ogImage ? `<meta name="twitter:image" content="${ogImage}" />` : '')
+        .replace('<div id="root"></div>', `<div id="root"></div>${articleHtml}`)
         .replace(
           '</head>',
           `<script type="application/ld+json">${jsonLd}</script>
@@ -2363,6 +2377,25 @@ app.get(['/about', '/blog', '/reviews', '/fees', '/privacy-policy', '/refund-pol
         });
         injectedHtml = injectedHtml.replace('</head>', `<script type="application/ld+json">${speakableSchema}</script>\n  </head>`);
       }
+
+      // CRITICAL: Inject SSR body content for crawlers/LLMs that don't execute JavaScript
+      let ssrContent = `<section id="ssr-content" style="display:none">`;
+      ssrContent += `<h1>${meta.title}</h1>`;
+      ssrContent += `<p>${meta.description}</p>`;
+
+      // Inject FAQ content as visible text for crawlers
+      if (meta.faqs && meta.faqs.length > 0) {
+        ssrContent += `<section class="faq-section"><h2>Frequently Asked Questions</h2>`;
+        for (const faq of meta.faqs) {
+          ssrContent += `<div class="faq-item"><h3>${faq.q}</h3><p class="faq-answer">${faq.a}</p></div>`;
+        }
+        ssrContent += `</section>`;
+      }
+
+      ssrContent += `<footer><p>M Salman Tahir — Advocate, High Court of Pakistan | <a href="tel:+923006829799">+92 300 6829799</a> | Office No. 401, 4th Floor, Qureshi Building, Lower Mall Road, Lahore</p></footer>`;
+      ssrContent += `</section>`;
+
+      injectedHtml = injectedHtml.replace('<div id="root"></div>', `<div id="root"></div>${ssrContent}`);
 
       return res.send(injectedHtml);
     }
