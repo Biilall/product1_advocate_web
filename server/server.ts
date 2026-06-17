@@ -2142,7 +2142,7 @@ app.get('/blog/:slug', async (req, res) => {
       <footer>
         <p>Author: M Salman Tahir — Advocate, High Court of Pakistan</p>
         <p>Published: ${post.publishedAt?.toISOString().split('T')[0] || ''}</p>
-        <p><a href="tel:+923006829799">+92 300 6829799</a> | <a href="https://msalmantahir.com/#contact">Contact for Consultation</a></p>
+        <p><a href="tel:+923006829799">+92 300 6829799</a> | <a href="https://msalmantahir.com/about">About M Salman Tahir</a></p>
       </footer>
     </article>`;
 
@@ -2319,7 +2319,7 @@ app.get(['/about', '/blog', '/reviews', '/fees', '/privacy-policy', '/refund-pol
           "@type": "BreadcrumbList",
           "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://msalmantahir.com" },
-            { "@type": "ListItem", "position": 2, "name": "Services", "item": "https://msalmantahir.com/#practice" },
+            { "@type": "ListItem", "position": 2, "name": "Services", "item": "https://msalmantahir.com/services/criminal-defense" },
             { "@type": "ListItem", "position": 3, "name": serviceName, "item": meta.canonical }
           ]
         });
