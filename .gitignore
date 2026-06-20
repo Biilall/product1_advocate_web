@@ -32,3 +32,7 @@ env.local
 
 uploads
 chat.db
+
+# GSC report script — secrets & generated output
+scripts/gsc-key.json
+scripts/output/

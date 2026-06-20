@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "build": "vite build",
     "start": "vite preview",
-    "server": "tsx watch server/server.ts"
+    "server": "tsx watch server/server.ts",
+    "seo:report": "tsx scripts/gsc-report.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.713.0",
