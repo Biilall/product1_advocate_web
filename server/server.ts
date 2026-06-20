@@ -577,6 +577,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// HSTS — instruct browsers to always use HTTPS for this domain (security + SEO)
+app.use((req, res, next) => {
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+  next();
+});
+
 // Serve static files from the dist directory (built frontend)
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
@@ -2233,8 +2241,8 @@ app.get('/blog/:slug', async (req, res) => {
       return res.send(injectedHtml);
     }
 
-    // Post not found — still serve the SPA, let React handle 404
-    res.send(indexHtml);
+    // Post not found — serve the SPA with a 404 status so crawlers don't index it
+    res.status(404).send(indexHtml);
   } catch (error) {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
@@ -2248,17 +2256,17 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
     canonical: 'https://msalmantahir.com/about',
   },
   '/blog': {
-    title: 'Legal Blog — Pakistan Law Articles & Guides | M Salman Tahir, Advocate',
+    title: 'Pakistan Legal Blog — Law Articles & Guides | M Salman Tahir',
     description: 'Read expert legal articles on criminal defense, bail procedures, family law, property disputes, and corporate law in Pakistan. Written by Advocate M Salman Tahir, High Court of Pakistan.',
     canonical: 'https://msalmantahir.com/blog',
   },
   '/reviews': {
-    title: 'Client Reviews — M Salman Tahir | Advocate, High Court of Pakistan',
+    title: 'Client Reviews — M Salman Tahir, Advocate Lahore',
     description: 'Read what clients say about Advocate M Salman Tahir. 4.8/5 rating across criminal defense, civil litigation, family law, and corporate law cases in Lahore.',
     canonical: 'https://msalmantahir.com/reviews',
   },
   '/fees': {
-    title: 'Legal Fee Structure — Consultation & Case Fees | M Salman Tahir, Advocate Lahore',
+    title: 'Legal Fees — Consultation & Case Charges | M Salman Tahir',
     description: 'Transparent legal fee structure for consultation, criminal defense, civil litigation, family law, and corporate law services. Advocate M Salman Tahir, High Court of Pakistan, Lahore.',
     canonical: 'https://msalmantahir.com/fees',
   },
@@ -2288,7 +2296,7 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
     canonical: 'https://msalmantahir.com/bank-transfer-qr',
   },
   '/services/criminal-defense': {
-    title: 'Criminal Defense Lawyer Lahore — Bail, Murder, Anti-Terrorism Cases | M Salman Tahir',
+    title: 'Criminal Lawyer Lahore — Bail & Defense | M Salman Tahir',
     description: 'Expert criminal defense in Lahore. Bail applications, murder defense, anti-terrorism cases, narcotics, cybercrime. 87% success rate. Advocate M Salman Tahir, High Court of Pakistan.',
     canonical: 'https://msalmantahir.com/services/criminal-defense',
     faqs: [
@@ -2299,7 +2307,7 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
     ],
   },
   '/services/civil-litigation': {
-    title: 'Civil Litigation Lawyer Lahore — Property Disputes, Contract Cases | M Salman Tahir',
+    title: 'Civil Lawyer Lahore — Property & Contract Cases | M Salman Tahir',
     description: 'Civil litigation in Lahore — property disputes, contract enforcement, constitutional petitions, recovery suits. Advocate M Salman Tahir, practising before District Courts and Lahore High Court.',
     canonical: 'https://msalmantahir.com/services/civil-litigation',
     faqs: [
@@ -2310,7 +2318,7 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
     ],
   },
   '/services/family-law': {
-    title: 'Family Lawyer Lahore — Divorce, Khula, Child Custody | M Salman Tahir',
+    title: 'Family Lawyer Lahore — Divorce & Khula | M Salman Tahir',
     description: 'Family law services in Lahore — khula, divorce, child custody, maintenance claims, dower recovery. Compassionate representation before Family Courts. Advocate M Salman Tahir.',
     canonical: 'https://msalmantahir.com/services/family-law',
     faqs: [
@@ -2321,7 +2329,7 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
     ],
   },
   '/services/corporate-law': {
-    title: 'Corporate & Banking Lawyer Lahore — Commercial Disputes | M Salman Tahir',
+    title: 'Corporate & Banking Lawyer Lahore | M Salman Tahir',
     description: 'Corporate and banking law in Lahore — company formation, commercial disputes, banking court litigation, contract drafting. Advocate M Salman Tahir, High Court of Pakistan.',
     canonical: 'https://msalmantahir.com/services/corporate-law',
     faqs: [
@@ -2332,7 +2340,7 @@ const staticPageMeta: Record<string, { title: string; description: string; canon
     ],
   },
   '/services/intellectual-property': {
-    title: 'Intellectual Property Lawyer Lahore — Trademark, Copyright | M Salman Tahir',
+    title: 'Trademark & IP Lawyer Lahore | M Salman Tahir',
     description: 'IP legal services in Lahore — trademark registration, copyright protection, patent advisory, IP enforcement. Advocate M Salman Tahir, practising since 2016.',
     canonical: 'https://msalmantahir.com/services/intellectual-property',
     faqs: [
@@ -2475,7 +2483,7 @@ app.get('/glossary', (_req, res) => {
   try {
     const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
     const baseUrl = 'https://msalmantahir.com';
-    const title = 'Pakistani Legal Glossary — Common Law Terms Explained | M Salman Tahir, Advocate';
+    const title = 'Pakistani Legal Glossary — Common Terms | M Salman Tahir';
     const description = 'Plain-English definitions of common Pakistani legal terms — khula, talaq, pre-arrest bail, FIR, iqrarnama, benami, decree and more. Explained by Advocate M Salman Tahir, High Court of Pakistan.';
     const canonical = `${baseUrl}/glossary`;
 
@@ -2534,7 +2542,7 @@ app.get('/glossary/:slug', (req, res) => {
     const baseUrl = 'https://msalmantahir.com';
 
     if (term) {
-      const title = `What is ${term.term}? Meaning & Legal Explanation | M Salman Tahir, Advocate`;
+      const title = `What is ${term.term}? Legal Meaning | M Salman Tahir`;
       const metaDesc = (term.shortDefinition.length > 155
         ? term.shortDefinition.slice(0, 152).trimEnd() + '…'
         : term.shortDefinition);
@@ -2620,15 +2628,32 @@ app.get('/glossary/:slug', (req, res) => {
       return res.send(injectedHtml);
     }
 
-    res.send(indexHtml);
+    // Term not found — serve the SPA with a 404 status so crawlers don't index it
+    res.status(404).send(indexHtml);
   } catch (error) {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
 });
 
 // Catch-all handler: serve React app for any unmatched routes
+// Known client-only routes (rendered by React Router, not by an Express SSR route).
+// These must return 200; everything else is a genuine 404.
+const KNOWN_CLIENT_ROUTES = new Set([
+  '/dashboard',
+  '/dashboard/blog',
+  '/payment/success',
+  '/payment/cancel',
+  '/payments',
+]);
+
 app.use((req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+  if (KNOWN_CLIENT_ROUTES.has(req.path)) {
+    return res.sendFile(indexPath);
+  }
+  // Unknown route — serve the SPA shell so React renders the NotFound page,
+  // but with a real 404 status so search engines don't index junk URLs.
+  res.status(404).sendFile(indexPath);
 });
 
 app.listen(port, "0.0.0.0", () => {

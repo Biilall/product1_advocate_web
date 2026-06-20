@@ -108,6 +108,16 @@ const FamilyLaw = () => {
           </section>
 
           <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Legal Terms Explained</h2>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <Link to="/glossary/khula" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is Khula?</Link>
+              <Link to="/glossary/talaq" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is Talaq?</Link>
+              <Link to="/glossary/hizanat" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is Hizanat (Custody)?</Link>
+              <Link to="/glossary/iddat" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is Iddat?</Link>
+            </div>
+          </section>
+
+          <section>
             <h2 className="text-xl font-serif text-foreground mb-3">Related Services</h2>
             <div className="flex flex-wrap gap-3 mt-3">
               <Link to="/services/criminal-defense" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Criminal Defense</Link>

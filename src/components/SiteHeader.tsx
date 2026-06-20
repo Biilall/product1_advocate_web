@@ -98,6 +98,12 @@ const SiteHeader = () => {
             Blog
           </Link>
           <Link
+            to="/glossary"
+            className={`hover:text-primary-foreground transition-colors ${isActive("/glossary") || location.pathname.startsWith("/glossary/") ? "text-primary-foreground" : ""}`}
+          >
+            Glossary
+          </Link>
+          <Link
             to="/about"
             className={`hover:text-primary-foreground transition-colors ${isActive("/about") ? "text-primary-foreground" : ""}`}
           >
@@ -152,6 +158,9 @@ const SiteHeader = () => {
             </div>
             <Link to="/blog" className={`block py-2.5 px-3 rounded hover:bg-primary-foreground/10 transition-colors ${isActive("/blog") || location.pathname.startsWith("/blog/") ? "text-primary-foreground bg-primary-foreground/5" : "text-primary-foreground/70"}`}>
               Blog
+            </Link>
+            <Link to="/glossary" className={`block py-2.5 px-3 rounded hover:bg-primary-foreground/10 transition-colors ${isActive("/glossary") || location.pathname.startsWith("/glossary/") ? "text-primary-foreground bg-primary-foreground/5" : "text-primary-foreground/70"}`}>
+              Glossary
             </Link>
             <Link to="/about" className={`block py-2.5 px-3 rounded hover:bg-primary-foreground/10 transition-colors ${isActive("/about") ? "text-primary-foreground bg-primary-foreground/5" : "text-primary-foreground/70"}`}>
               About

@@ -122,6 +122,15 @@ const CivilLitigation = () => {
           </section>
 
           <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Legal Terms Explained</h2>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <Link to="/glossary/iqrarnama" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is an Iqrarnama?</Link>
+              <Link to="/glossary/benami-transaction" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is a Benami Transaction?</Link>
+              <Link to="/glossary/decree" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is a Decree?</Link>
+            </div>
+          </section>
+
+          <section>
             <h2 className="text-xl font-serif text-foreground mb-3">Related Services</h2>
             <div className="flex flex-wrap gap-3 mt-3">
               <Link to="/services/criminal-defense" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Criminal Defense</Link>

@@ -118,6 +118,15 @@ const CriminalDefense = () => {
           </section>
 
           <section>
+            <h2 className="text-xl font-serif text-foreground mb-3">Legal Terms Explained</h2>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <Link to="/glossary/pre-arrest-bail" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is Pre-Arrest Bail?</Link>
+              <Link to="/glossary/post-arrest-bail" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is Post-Arrest Bail?</Link>
+              <Link to="/glossary/fir" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">What is an FIR?</Link>
+            </div>
+          </section>
+
+          <section>
             <h2 className="text-xl font-serif text-foreground mb-3">Related Services</h2>
             <div className="flex flex-wrap gap-3 mt-3">
               <Link to="/services/civil-litigation" className="text-sm border border-border rounded px-4 py-2 hover:bg-foreground/5 transition-colors">Civil Litigation</Link>
