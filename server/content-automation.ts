@@ -6,10 +6,25 @@ import database, { ContentJob, BlogPost } from './database.js';
 // ==================== Configuration ====================
 
 // Competitor sites to discover popular blog articles from (via sitemap + popular-posts widgets).
-// Add more domains here to widen the content pool.
+// This is the SEED / fallback list. When Google Custom Search is configured
+// (GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX), competitors are auto-selected by who
+// actually ranks for our target keywords — see discoverCompetitorSites().
 const COMPETITOR_SITES = [
   'https://joshandmakinternational.com',
 ];
+
+// Domains that are never treated as competitors (our own site, directories,
+// social, government, news aggregators, encyclopedias, etc.).
+const NON_COMPETITOR_DOMAIN_PATTERNS = [
+  'msalmantahir.com',
+  'google.', 'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'x.com',
+  'youtube.com', 'wikipedia.org', 'pinterest.', 'tiktok.com', 'reddit.com',
+  'justdial.com', 'yelp.', 'tripadvisor.', 'quora.com', 'medium.com',
+  '.gov.pk', '.gov', '.edu', 'paklawsite', 'pakistanlawsite', 'punjabcode',
+  'na.gov.pk', 'supremecourt.gov.pk', 'pljlawsite', 'scribd.com', 'jstor.org',
+  'amazon.', 'wordpress.com', 'blogspot.com', 'apple.com',
+];
+
 
 // Fallback seed list used only if live discovery returns nothing.
 const COMPETITOR_ARTICLE_URLS = [
@@ -146,8 +161,15 @@ async function scrapeArticle(url: string): Promise<{ title: string; content: str
     const titleEl = doc.querySelector('h1.entry-title') || doc.querySelector('h1') || doc.querySelector('title');
     const title = titleEl?.textContent?.trim() || '';
 
-    // Get article content - WordPress typically uses .entry-content
-    const contentEl = doc.querySelector('.entry-content') || doc.querySelector('article') || doc.querySelector('.post-content');
+    // Get article content - WordPress typically uses .entry-content;
+    // fall back to common containers for non-WordPress competitor sites.
+    const contentEl =
+      doc.querySelector('.entry-content') ||
+      doc.querySelector('article') ||
+      doc.querySelector('.post-content') ||
+      doc.querySelector('.article-content') ||
+      doc.querySelector('main') ||
+      doc.querySelector('[role="main"]');
     if (!contentEl) return null;
 
     // Remove scripts, styles, ads, navigation elements
@@ -169,6 +191,14 @@ async function scrapeArticle(url: string): Promise<{ title: string; content: str
 
 const DISCOVERY_TTL_MS = 12 * 60 * 60 * 1000; // refresh discovered list twice a day
 let discoveryCache: { urls: string[]; fetchedAt: number } | null = null;
+
+// Competitor-site selection cache (refreshed once a day to stay within SERP quota).
+const COMPETITOR_TTL_MS = 24 * 60 * 60 * 1000;
+let competitorCache: { sites: string[]; fetchedAt: number } | null = null;
+// Max competitor sites to crawl per job cycle (keeps runtime bounded).
+const MAX_COMPETITOR_SITES = 6;
+// How many keywords to query per discovery cycle (Custom Search free tier = 100/day).
+const SERP_KEYWORDS_PER_CYCLE = 8;
 
 // URL path segments that are never real blog articles.
 const NON_ARTICLE_SLUGS = new Set([
@@ -201,9 +231,16 @@ function isLikelyArticleUrl(url: string, baseHost: string): boolean {
     if (u.host !== baseHost) return false;
     if (u.search) return false;
     const segments = u.pathname.split('/').filter(Boolean);
-    // Articles on these WordPress sites live at the root as a single slug.
-    if (segments.length !== 1) return false;
-    const slug = segments[0].toLowerCase();
+    if (segments.length === 0 || segments.length > 2) return false;
+
+    // For 2-segment paths, the first must be a known blog/article prefix.
+    const BLOG_PREFIXES = new Set([
+      'blog', 'blogs', 'article', 'articles', 'post', 'posts', 'news',
+      'insights', 'resources', 'knowledge', 'legal-articles', 'publications',
+    ]);
+    if (segments.length === 2 && !BLOG_PREFIXES.has(segments[0].toLowerCase())) return false;
+
+    const slug = segments[segments.length - 1].toLowerCase();
     if (NON_ARTICLE_SLUGS.has(slug)) return false;
     if (/\.(xml|jpg|jpeg|png|webp|pdf|gif|css|js)$/i.test(slug)) return false;
     if (/^(category|tag|author|page|wp-)/.test(slug)) return false;
@@ -216,11 +253,17 @@ function isLikelyArticleUrl(url: string, baseHost: string): boolean {
   }
 }
 
-// Crawl a site's homepage and blog index to discover article URLs.
+// Crawl a site's homepage and common blog index paths to discover article URLs.
 // DOM order is preserved so the newest/most-prominent posts come first.
 async function discoverFromListing(baseUrl: string): Promise<string[]> {
   const baseHost = new URL(baseUrl).host;
-  const pages = [`${baseUrl}/`, `${baseUrl}/blog/`];
+  const pages = [
+    `${baseUrl}/`,
+    `${baseUrl}/blog/`,
+    `${baseUrl}/articles/`,
+    `${baseUrl}/insights/`,
+    `${baseUrl}/news/`,
+  ];
   const ordered: string[] = [];
 
   for (const page of pages) {
@@ -244,7 +287,7 @@ async function discoverFromListing(baseUrl: string): Promise<string[]> {
 // Discover "popular / most-read" articles from a site's homepage and blog index.
 async function discoverPopular(baseUrl: string): Promise<string[]> {
   const baseHost = new URL(baseUrl).host;
-  const pages = [baseUrl, `${baseUrl}/blog/`];
+  const pages = [baseUrl, `${baseUrl}/blog/`, `${baseUrl}/articles/`];
   const popular: string[] = [];
 
   for (const page of pages) {
@@ -271,6 +314,91 @@ async function discoverPopular(baseUrl: string): Promise<string[]> {
   return [...new Set(popular)];
 }
 
+// ==================== Competitor Auto-Selection (SERP-based) ====================
+
+// Query the Google Custom Search JSON API for one keyword and return result hostnames.
+// Returns [] when the API is not configured or the request fails (graceful fallback).
+async function searchSerpDomains(keyword: string): Promise<string[]> {
+  const apiKey = process.env.GOOGLE_CSE_API_KEY;
+  const cx = process.env.GOOGLE_CSE_CX;
+  if (!apiKey || !cx) return [];
+
+  const endpoint =
+    `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}` +
+    `&cx=${encodeURIComponent(cx)}&num=10&gl=pk&hl=en&q=${encodeURIComponent(keyword)}`;
+
+  const body = await fetchText(endpoint, 15000);
+  if (!body) return [];
+
+  try {
+    const data = JSON.parse(body);
+    const items: any[] = Array.isArray(data.items) ? data.items : [];
+    return items
+      .map(it => {
+        try {
+          return new URL(it.link).hostname.replace(/^www\./, '').toLowerCase();
+        } catch {
+          return '';
+        }
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function isCompetitorDomain(host: string): boolean {
+  const h = host.toLowerCase();
+  return !NON_COMPETITOR_DOMAIN_PATTERNS.some(p => h.includes(p));
+}
+
+// Auto-select competitor sites by who ranks for our target keywords.
+// A domain that appears for many of our keywords is a stronger competitor.
+// Falls back to the seed COMPETITOR_SITES when SERP is unavailable.
+async function discoverCompetitorSites(): Promise<string[]> {
+  if (competitorCache && Date.now() - competitorCache.fetchedAt < COMPETITOR_TTL_MS) {
+    return competitorCache.sites;
+  }
+
+  // Rotate which keywords we query each cycle to cover the full set over time
+  // while staying within the daily SERP quota.
+  const start = Math.floor(Date.now() / COMPETITOR_TTL_MS) % SEO_KEYWORDS_EN.length;
+  const rotated = [...SEO_KEYWORDS_EN.slice(start), ...SEO_KEYWORDS_EN.slice(0, start)];
+  const keywords = rotated.slice(0, SERP_KEYWORDS_PER_CYCLE);
+
+  const freq = new Map<string, number>();
+  let serpUsed = false;
+
+  for (const kw of keywords) {
+    const hosts = await searchSerpDomains(kw);
+    if (hosts.length > 0) serpUsed = true;
+    for (const host of new Set(hosts)) {
+      if (!isCompetitorDomain(host)) continue;
+      freq.set(host, (freq.get(host) || 0) + 1);
+    }
+  }
+
+  if (!serpUsed || freq.size === 0) {
+    if (!serpUsed) {
+      console.log('[ContentJob] SERP competitor discovery not configured — using seed competitor list.');
+    }
+    return COMPETITOR_SITES;
+  }
+
+  // Rank by how many of our keywords each domain ranks for (desc).
+  const ranked = [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_COMPETITOR_SITES)
+    .map(([host]) => `https://${host}`);
+
+  // Always keep the proven seed competitor in the pool.
+  const sites = [...new Set([...ranked, ...COMPETITOR_SITES])].slice(0, MAX_COMPETITOR_SITES + 1);
+
+  console.log(`[ContentJob] Auto-selected ${sites.length} competitor sites from SERP: ${sites.map(s => new URL(s).host).join(', ')}`);
+  competitorCache = { sites, fetchedAt: Date.now() };
+  return sites;
+}
+
 // Build the prioritized pool of candidate article URLs across all competitors.
 // Popular/most-read articles rank first, then the rest in listing (recency) order.
 async function discoverCompetitorArticles(): Promise<string[]> {
@@ -278,10 +406,12 @@ async function discoverCompetitorArticles(): Promise<string[]> {
     return discoveryCache.urls;
   }
 
+  const competitorSites = await discoverCompetitorSites();
+
   const popularOrdered: string[] = [];
   const listingOrdered: string[] = [];
 
-  for (const site of COMPETITOR_SITES) {
+  for (const site of competitorSites) {
     try {
       const [popular, listing] = await Promise.all([
         discoverPopular(site),
