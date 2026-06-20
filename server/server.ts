@@ -2073,6 +2073,55 @@ app.get('/sitemap.xml', async (_req, res) => {
 });
 
 // Server-side meta tag injection for blog post SEO (for crawlers)
+
+// Map a post's category + tags/title to related money pages (services + glossary)
+// so crawlers see internal links from every article to the pages we want to rank.
+const BLOG_SERVICE_BY_CATEGORY: Record<string, { label: string; path: string }> = {
+  'Criminal Law': { label: 'Criminal Defense', path: '/services/criminal-defense' },
+  'Family Law': { label: 'Family Law', path: '/services/family-law' },
+  'Property Law': { label: 'Civil Litigation', path: '/services/civil-litigation' },
+  'Civil Litigation': { label: 'Civil Litigation', path: '/services/civil-litigation' },
+  'Constitutional Law': { label: 'Civil Litigation', path: '/services/civil-litigation' },
+  'Human Rights': { label: 'Civil Litigation', path: '/services/civil-litigation' },
+  'Consumer Protection': { label: 'Civil Litigation', path: '/services/civil-litigation' },
+  'Banking & Finance Law': { label: 'Corporate & Banking Law', path: '/services/corporate-law' },
+  'Corporate Law': { label: 'Corporate & Banking Law', path: '/services/corporate-law' },
+};
+const BLOG_GLOSSARY_TERMS: { slug: string; label: string; match: string[] }[] = [
+  { slug: 'khula', label: 'Khula', match: ['khula'] },
+  { slug: 'talaq', label: 'Talaq', match: ['talaq', 'divorce'] },
+  { slug: 'hizanat', label: 'Hizanat (Custody)', match: ['custody', 'hizanat', 'guardian'] },
+  { slug: 'iddat', label: 'Iddat', match: ['iddat'] },
+  { slug: 'pre-arrest-bail', label: 'Pre-Arrest Bail', match: ['pre-arrest', 'anticipatory', 'bail'] },
+  { slug: 'post-arrest-bail', label: 'Post-Arrest Bail', match: ['post-arrest', 'bail'] },
+  { slug: 'fir', label: 'FIR', match: ['fir', 'first information'] },
+  { slug: 'iqrarnama', label: 'Iqrarnama', match: ['iqrarnama'] },
+  { slug: 'benami-transaction', label: 'Benami Transaction', match: ['benami'] },
+  { slug: 'decree', label: 'Decree', match: ['decree', 'civil suit', 'judgment'] },
+];
+const BLOG_GLOSSARY_BY_CATEGORY: Record<string, string[]> = {
+  'Family Law': ['khula', 'talaq', 'hizanat'],
+  'Criminal Law': ['pre-arrest-bail', 'post-arrest-bail', 'fir'],
+  'Property Law': ['iqrarnama', 'benami-transaction', 'decree'],
+  'Civil Litigation': ['decree', 'iqrarnama', 'benami-transaction'],
+  'Constitutional Law': ['decree'],
+  'Human Rights': ['decree'],
+};
+function blogRelatedLinksHtml(category: string, tags: string[], title: string): string {
+  const service = BLOG_SERVICE_BY_CATEGORY[category];
+  const haystack = `${title} ${(tags || []).join(' ')}`.toLowerCase();
+  const matched = BLOG_GLOSSARY_TERMS.filter((t) => t.match.some((m) => haystack.includes(m))).map((t) => t.slug);
+  const fallback = BLOG_GLOSSARY_BY_CATEGORY[category] || [];
+  const slugs = Array.from(new Set([...matched, ...fallback])).slice(0, 3);
+  const terms = slugs.map((s) => BLOG_GLOSSARY_TERMS.find((t) => t.slug === s)).filter(Boolean) as { slug: string; label: string }[];
+  if (!service && terms.length === 0) return '';
+  let html = '<section class="related-links"><h2>Related Services & Legal Terms</h2><ul>';
+  if (service) html += `<li><a href="${service.path}">${service.label} in Lahore</a></li>`;
+  for (const t of terms) html += `<li><a href="/glossary/${t.slug}">What is ${t.label}?</a></li>`;
+  html += '</ul></section>';
+  return html;
+}
+
 app.get('/blog/:slug', async (req, res) => {
   try {
     const post = await getBlogPostBySlug(req.params.slug as string);
@@ -2081,7 +2130,9 @@ app.get('/blog/:slug', async (req, res) => {
     if (post) {
       const baseUrl = 'https://msalmantahir.com';
       const metaTitle = post.metaTitle || post.title;
-      const metaDesc = post.metaDescription || post.excerpt;
+      const rawDesc = post.metaDescription || post.excerpt || '';
+      // Keep meta descriptions <=160 chars so they don't truncate in SERPs
+      const metaDesc = rawDesc.length > 160 ? rawDesc.slice(0, 157).trimEnd() + '…' : rawDesc;
       const ogImage = post.ogImage || post.featuredImage || '';
 
       // Shared author entity for E-E-A-T (AEO/GEO)
@@ -2211,6 +2262,7 @@ app.get('/blog/:slug', async (req, res) => {
       <h1>${post.title}</h1>
       <p class="blog-excerpt">${metaDesc}</p>
       <div class="blog-body">${post.content}</div>
+      ${blogRelatedLinksHtml(post.category, post.tags || [], post.title)}
       <footer>
         <p>Author: M Salman Tahir — Advocate, High Court of Pakistan</p>
         <p>Published: ${post.publishedAt?.toISOString().split('T')[0] || ''}</p>

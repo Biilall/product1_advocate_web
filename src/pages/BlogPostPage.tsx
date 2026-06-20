@@ -23,6 +23,54 @@ interface BlogPostData {
   updatedAt: string;
 }
 
+// Map a post's category + tags/title to relevant money pages (services + glossary)
+// so every article passes internal-link equity to the pages we want to rank.
+const SERVICE_BY_CATEGORY: Record<string, { label: string; path: string }> = {
+  "Criminal Law": { label: "Criminal Defense", path: "/services/criminal-defense" },
+  "Family Law": { label: "Family Law", path: "/services/family-law" },
+  "Property Law": { label: "Civil Litigation", path: "/services/civil-litigation" },
+  "Civil Litigation": { label: "Civil Litigation", path: "/services/civil-litigation" },
+  "Constitutional Law": { label: "Civil Litigation", path: "/services/civil-litigation" },
+  "Human Rights": { label: "Civil Litigation", path: "/services/civil-litigation" },
+  "Consumer Protection": { label: "Civil Litigation", path: "/services/civil-litigation" },
+  "Banking & Finance Law": { label: "Corporate & Banking Law", path: "/services/corporate-law" },
+  "Corporate Law": { label: "Corporate & Banking Law", path: "/services/corporate-law" },
+};
+
+const GLOSSARY_TERMS: { slug: string; label: string; match: string[] }[] = [
+  { slug: "khula", label: "Khula", match: ["khula"] },
+  { slug: "talaq", label: "Talaq", match: ["talaq", "divorce"] },
+  { slug: "hizanat", label: "Hizanat (Custody)", match: ["custody", "hizanat", "guardian"] },
+  { slug: "iddat", label: "Iddat", match: ["iddat"] },
+  { slug: "pre-arrest-bail", label: "Pre-Arrest Bail", match: ["pre-arrest", "anticipatory", "bail"] },
+  { slug: "post-arrest-bail", label: "Post-Arrest Bail", match: ["post-arrest", "bail"] },
+  { slug: "fir", label: "FIR", match: ["fir", "first information"] },
+  { slug: "iqrarnama", label: "Iqrarnama", match: ["iqrarnama"] },
+  { slug: "benami-transaction", label: "Benami Transaction", match: ["benami"] },
+  { slug: "decree", label: "Decree", match: ["decree", "civil suit", "judgment"] },
+];
+
+const GLOSSARY_BY_CATEGORY: Record<string, string[]> = {
+  "Family Law": ["khula", "talaq", "hizanat"],
+  "Criminal Law": ["pre-arrest-bail", "post-arrest-bail", "fir"],
+  "Property Law": ["iqrarnama", "benami-transaction", "decree"],
+  "Civil Litigation": ["decree", "iqrarnama", "benami-transaction"],
+  "Constitutional Law": ["decree"],
+  "Human Rights": ["decree"],
+};
+
+function getRelatedLinks(category: string, tags: string[], title: string) {
+  const service = SERVICE_BY_CATEGORY[category];
+  const haystack = `${title} ${tags.join(" ")}`.toLowerCase();
+  const matched = GLOSSARY_TERMS.filter((t) => t.match.some((m) => haystack.includes(m))).map((t) => t.slug);
+  const fallback = GLOSSARY_BY_CATEGORY[category] || [];
+  const slugs = Array.from(new Set([...matched, ...fallback])).slice(0, 3);
+  const terms = slugs
+    .map((s) => GLOSSARY_TERMS.find((t) => t.slug === s))
+    .filter((t): t is { slug: string; label: string; match: string[] } => Boolean(t));
+  return { service, terms };
+}
+
 const BlogPostPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const [post, setPost] = useState<BlogPostData | null>(null);
@@ -185,6 +233,38 @@ const BlogPostPage = () => {
             ))}
           </div>
         )}
+
+        {/* Related Services & Legal Terms — internal links to money pages */}
+        {(() => {
+          const { service, terms } = getRelatedLinks(post.category, post.tags, post.title);
+          if (!service && terms.length === 0) return null;
+          return (
+            <section className="mt-10 pt-8 border-t">
+              <h2 className="text-lg font-serif font-bold text-gray-900 mb-4">
+                Related Services & Legal Terms
+              </h2>
+              <div className="flex flex-wrap gap-3">
+                {service && (
+                  <Link
+                    to={service.path}
+                    className="text-sm border border-gray-300 rounded px-4 py-2 hover:bg-gray-50 transition-colors text-[#1e3a5f]"
+                  >
+                    {service.label} in Lahore
+                  </Link>
+                )}
+                {terms.map((t) => (
+                  <Link
+                    key={t.slug}
+                    to={`/glossary/${t.slug}`}
+                    className="text-sm border border-gray-300 rounded px-4 py-2 hover:bg-gray-50 transition-colors text-[#1e3a5f]"
+                  >
+                    What is {t.label}?
+                  </Link>
+                ))}
+              </div>
+            </section>
+          );
+        })()}
 
         {/* CTA */}
         <div className="mt-12 p-6 bg-foreground text-primary-foreground rounded-lg text-center">
