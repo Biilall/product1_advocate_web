@@ -59,6 +59,9 @@ process.on('unhandledRejection', (err) => {
 const app = express();
 const port = Number(process.env.PORT) || 3001;
 
+// Behind Cloud Run's proxy — trust X-Forwarded-* so req.protocol/host are accurate
+app.set('trust proxy', true);
+
 console.log('=== STARTING SERVER ===');
 console.log('Port:', port);
 console.log('Env PORT:', process.env.PORT);
@@ -555,6 +558,23 @@ async function sendMessageToAssistant(
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Canonical host redirect (SEO): force a single host so ranking signals aren't
+// split across http/https and www/non-www. 301 → https://msalmantahir.com
+const CANONICAL_HOST = 'msalmantahir.com';
+app.use((req, res, next) => {
+  const host = (req.headers.host || '').toLowerCase();
+  // Only enforce for the production domain; leave localhost/Cloud Run URLs alone
+  const isProdDomain = host === CANONICAL_HOST || host === `www.${CANONICAL_HOST}`;
+  if (isProdDomain) {
+    const needsHttps = req.protocol !== 'https';
+    const needsHostFix = host !== CANONICAL_HOST; // strip www
+    if (needsHttps || needsHostFix) {
+      return res.redirect(301, `https://${CANONICAL_HOST}${req.originalUrl}`);
+    }
+  }
+  next();
+});
 
 // Serve static files from the dist directory (built frontend)
 app.use(express.static(path.join(__dirname, '..', 'dist')));
