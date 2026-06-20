@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import courtImg from "@/assets/lahore-high-court.png";
+import courtImg from "@/assets/lahore-high-court.webp";
 import qrBankImage from "@/assets/salman_QR_Bank.jpeg";
 import SiteHeader from "@/components/SiteHeader";
 

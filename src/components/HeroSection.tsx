@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import lahoreHighCourt from "@/assets/lahore-high-court.png";
+import lahoreHighCourt from "@/assets/lahore-high-court.webp";
 
 const HeroSection = () => {
   const [phase, setPhase] = useState<"typing" | "fading" | "revealed">("typing");
@@ -29,9 +29,20 @@ const HeroSection = () => {
 
   if (phase === "typing" || phase === "fading") {
     return (
-      <section className="min-h-screen flex items-center justify-center bg-foreground">
+      <section className="relative min-h-screen flex items-center justify-center bg-foreground">
+        {/* Preload the LCP hero image during the intro animation so it paints instantly on reveal */}
+        <img
+          src={lahoreHighCourt}
+          alt=""
+          aria-hidden="true"
+          fetchPriority="high"
+          decoding="async"
+          width={1167}
+          height={686}
+          className="absolute inset-0 w-full h-full object-cover opacity-0 pointer-events-none"
+        />
         <h2
-          className={`text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-serif tracking-wider text-primary-foreground transition-opacity duration-1000 px-4 text-center ${
+          className={`relative z-10 text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-serif tracking-wider text-primary-foreground transition-opacity duration-1000 px-4 text-center ${
             phase === "fading" ? "opacity-0" : "opacity-100"
           }`}
         >
@@ -48,6 +59,10 @@ const HeroSection = () => {
         <img
           src={lahoreHighCourt}
           alt="Lahore High Court, Pakistan"
+          fetchPriority="high"
+          decoding="async"
+          width={1167}
+          height={686}
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-foreground/60" />

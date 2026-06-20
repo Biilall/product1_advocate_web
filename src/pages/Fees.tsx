@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import courtImg from "@/assets/lahore-high-court.png";
+import courtImg from "@/assets/lahore-high-court.webp";
 import SiteHeader from "@/components/SiteHeader";
 
 const PAGE_TITLE = "Fee Structure — M Salman Tahir | Advocate, High Court of Pakistan";

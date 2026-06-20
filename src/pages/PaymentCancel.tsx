@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import courtImg from "@/assets/lahore-high-court.png";
+import courtImg from "@/assets/lahore-high-court.webp";
 import SiteHeader from "@/components/SiteHeader";
 
 const PaymentCancel = () => {
