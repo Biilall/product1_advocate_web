@@ -399,8 +399,10 @@ async function discoverCompetitorSites(): Promise<string[]> {
   return sites;
 }
 
-// Build the prioritized pool of candidate article URLs across all competitors.
-// Popular/most-read articles rank first, then the rest in listing (recency) order.
+// Build the prioritized pool of candidate article URLs.
+// Competitors are processed SEQUENTIALLY: all of competitor #1's articles come
+// first (popular/most-read, then recency order), then all of competitor #2's, etc.
+// This means the job exhausts one competitor before moving to the next.
 async function discoverCompetitorArticles(): Promise<string[]> {
   if (discoveryCache && Date.now() - discoveryCache.fetchedAt < DISCOVERY_TTL_MS) {
     return discoveryCache.urls;
@@ -408,8 +410,8 @@ async function discoverCompetitorArticles(): Promise<string[]> {
 
   const competitorSites = await discoverCompetitorSites();
 
-  const popularOrdered: string[] = [];
-  const listingOrdered: string[] = [];
+  const ordered: string[] = [];
+  let popularCount = 0;
 
   for (const site of competitorSites) {
     try {
@@ -417,24 +419,28 @@ async function discoverCompetitorArticles(): Promise<string[]> {
         discoverPopular(site),
         discoverFromListing(site),
       ]);
-      popularOrdered.push(...popular);
-      listingOrdered.push(...listing);
+      // Per-competitor ordering: popular first, then the rest by recency.
+      const siteArticles = [...new Set([...popular, ...listing])];
+      popularCount += popular.length;
+      ordered.push(...siteArticles);
+      console.log(`[ContentJob] ${new URL(site).host}: ${siteArticles.length} articles (${popular.length} popular).`);
     } catch (err) {
       console.error(`[ContentJob] Discovery failed for ${site}:`, err);
     }
   }
 
-  // Popular first, then recency order, de-duplicated while preserving order.
-  const ordered = [...new Set([...popularOrdered, ...listingOrdered])];
+  // De-duplicate across competitors while preserving the sequential order
+  // (an article only counts toward the first competitor it was found on).
+  const deduped = [...new Set(ordered)];
 
-  if (ordered.length === 0) {
+  if (deduped.length === 0) {
     console.warn('[ContentJob] Live discovery empty — falling back to seed list.');
     return COMPETITOR_ARTICLE_URLS;
   }
 
-  console.log(`[ContentJob] Discovered ${ordered.length} candidate articles (${popularOrdered.length} popular).`);
-  discoveryCache = { urls: ordered, fetchedAt: Date.now() };
-  return ordered;
+  console.log(`[ContentJob] Discovered ${deduped.length} candidate articles across ${competitorSites.length} competitor(s) (${popularCount} popular).`);
+  discoveryCache = { urls: deduped, fetchedAt: Date.now() };
+  return deduped;
 }
 
 // ==================== OpenAI Content Generation ====================
@@ -601,9 +607,17 @@ async function runContentJob(): Promise<void> {
     return;
   }
 
-  // Prefer the highest-priority unprocessed article (popular/fresh first),
-  // with light randomization among the top candidates to avoid repetition.
-  const topPool = availableUrls.slice(0, Math.min(5, availableUrls.length));
+  // Process competitors sequentially: stay on the FIRST unprocessed competitor
+  // (the host of the first available article) until all its blogs are consumed,
+  // then the next run rolls onto the following competitor. Light randomization
+  // among that competitor's top candidates avoids always picking the same order.
+  const currentHost = (() => {
+    try { return new URL(availableUrls[0]).host; } catch { return ''; }
+  })();
+  const sameCompetitor = availableUrls.filter(u => {
+    try { return new URL(u).host === currentHost; } catch { return false; }
+  });
+  const topPool = sameCompetitor.slice(0, Math.min(5, sameCompetitor.length));
   const targetUrl = topPool[Math.floor(Math.random() * topPool.length)];
 
   // Create job record (running)
