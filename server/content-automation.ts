@@ -5,6 +5,13 @@ import database, { ContentJob, BlogPost } from './database.js';
 
 // ==================== Configuration ====================
 
+// Competitor sites to discover popular blog articles from (via sitemap + popular-posts widgets).
+// Add more domains here to widen the content pool.
+const COMPETITOR_SITES = [
+  'https://joshandmakinternational.com',
+];
+
+// Fallback seed list used only if live discovery returns nothing.
 const COMPETITOR_ARTICLE_URLS = [
   'https://joshandmakinternational.com/cross-examination-in-family-court-proceedings/',
   'https://joshandmakinternational.com/lets-talk-about-rent-agreements-in-pakistan/',
@@ -158,6 +165,148 @@ async function scrapeArticle(url: string): Promise<{ title: string; content: str
   }
 }
 
+// ==================== Competitor Article Discovery ====================
+
+const DISCOVERY_TTL_MS = 12 * 60 * 60 * 1000; // refresh discovered list twice a day
+let discoveryCache: { urls: string[]; fetchedAt: number } | null = null;
+
+// URL path segments that are never real blog articles.
+const NON_ARTICLE_SLUGS = new Set([
+  'about', 'about-us', 'contact', 'contact-us', 'contact-form', 'services', 'service', 'team',
+  'privacy-policy', 'terms', 'terms-and-conditions', 'disclaimer', 'sitemap',
+  'blog', 'news', 'home', 'cart', 'checkout', 'my-account', 'shop', 'careers',
+  'practice-areas', 'our-team', 'our-people', 'faq', 'faqs', 'testimonials', 'feed',
+  'legal-updates', 'archives-jm', 'legal-services', 'client-information',
+]);
+
+async function fetchText(url: string, timeoutMs = 20000): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LegalBlogBot/1.0)' },
+    });
+    clearTimeout(timeout);
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+function isLikelyArticleUrl(url: string, baseHost: string): boolean {
+  try {
+    const u = new URL(url, `https://${baseHost}`);
+    if (u.host !== baseHost) return false;
+    if (u.search) return false;
+    const segments = u.pathname.split('/').filter(Boolean);
+    // Articles on these WordPress sites live at the root as a single slug.
+    if (segments.length !== 1) return false;
+    const slug = segments[0].toLowerCase();
+    if (NON_ARTICLE_SLUGS.has(slug)) return false;
+    if (/\.(xml|jpg|jpeg|png|webp|pdf|gif|css|js)$/i.test(slug)) return false;
+    if (/^(category|tag|author|page|wp-)/.test(slug)) return false;
+    if (/-blog$|^legal-services|^legal-updates/.test(slug)) return false;
+    // A real article slug is descriptive: 3+ words and reasonably long.
+    const hyphens = (slug.match(/-/g) || []).length;
+    return hyphens >= 2 && slug.length > 12;
+  } catch {
+    return false;
+  }
+}
+
+// Crawl a site's homepage and blog index to discover article URLs.
+// DOM order is preserved so the newest/most-prominent posts come first.
+async function discoverFromListing(baseUrl: string): Promise<string[]> {
+  const baseHost = new URL(baseUrl).host;
+  const pages = [`${baseUrl}/`, `${baseUrl}/blog/`];
+  const ordered: string[] = [];
+
+  for (const page of pages) {
+    const html = await fetchText(page);
+    if (!html) continue;
+    try {
+      const doc = new JSDOM(html).window.document;
+      doc.querySelectorAll('a[href]').forEach((a: any) => {
+        const href = a.getAttribute('href');
+        if (!href) return;
+        const clean = href.split('#')[0].split('?')[0];
+        if (isLikelyArticleUrl(clean, baseHost)) ordered.push(clean);
+      });
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return ordered; // may contain duplicates; de-duped by caller
+}
+
+// Discover "popular / most-read" articles from a site's homepage and blog index.
+async function discoverPopular(baseUrl: string): Promise<string[]> {
+  const baseHost = new URL(baseUrl).host;
+  const pages = [baseUrl, `${baseUrl}/blog/`];
+  const popular: string[] = [];
+
+  for (const page of pages) {
+    const html = await fetchText(page);
+    if (!html) continue;
+    try {
+      const doc = new JSDOM(html).window.document;
+      // Widgets that signal popularity / traffic.
+      const widgets = doc.querySelectorAll(
+        '[class*="popular" i], [id*="popular" i], [class*="trending" i], [class*="most-read" i], [class*="most-viewed" i]'
+      );
+      widgets.forEach((w: any) => {
+        w.querySelectorAll('a[href]').forEach((a: any) => {
+          const href = a.getAttribute('href');
+          if (!href) return;
+          const clean = href.split('#')[0].split('?')[0];
+          if (isLikelyArticleUrl(clean, baseHost)) popular.push(clean);
+        });
+      });
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return [...new Set(popular)];
+}
+
+// Build the prioritized pool of candidate article URLs across all competitors.
+// Popular/most-read articles rank first, then the rest in listing (recency) order.
+async function discoverCompetitorArticles(): Promise<string[]> {
+  if (discoveryCache && Date.now() - discoveryCache.fetchedAt < DISCOVERY_TTL_MS) {
+    return discoveryCache.urls;
+  }
+
+  const popularOrdered: string[] = [];
+  const listingOrdered: string[] = [];
+
+  for (const site of COMPETITOR_SITES) {
+    try {
+      const [popular, listing] = await Promise.all([
+        discoverPopular(site),
+        discoverFromListing(site),
+      ]);
+      popularOrdered.push(...popular);
+      listingOrdered.push(...listing);
+    } catch (err) {
+      console.error(`[ContentJob] Discovery failed for ${site}:`, err);
+    }
+  }
+
+  // Popular first, then recency order, de-duplicated while preserving order.
+  const ordered = [...new Set([...popularOrdered, ...listingOrdered])];
+
+  if (ordered.length === 0) {
+    console.warn('[ContentJob] Live discovery empty — falling back to seed list.');
+    return COMPETITOR_ARTICLE_URLS;
+  }
+
+  console.log(`[ContentJob] Discovered ${ordered.length} candidate articles (${popularOrdered.length} popular).`);
+  discoveryCache = { urls: ordered, fetchedAt: Date.now() };
+  return ordered;
+}
+
 // ==================== OpenAI Content Generation ====================
 
 function pickRandomKeywords(count: number): string[] {
@@ -206,25 +355,35 @@ async function generateContent(
     const keywordList = keywords.join(', ');
     const urduKeywords = SEO_KEYWORDS_UR.slice(0, 4).join('، ');
 
-    const prompt = `You are an expert legal content writer for M. Salman Tahir, Advocate at the High Court of Pakistan, based in Lahore. 
+    const prompt = `You are M. Salman Tahir, an experienced Advocate at the High Court of Pakistan, based in Lahore, personally writing a blog post for your law firm's website.
 
-TASK: Rewrite and rephrase the following legal article into a completely new, original article. The article must:
+TASK: Using the reference article below only as background research, write a completely new, original article in your own voice.
 
-1. Be COMPLETELY REPHRASED - not just paraphrased. Restructure paragraphs, change sentence patterns, use different legal terminology while keeping accuracy.
-2. Naturally incorporate these SEO keywords 5-6 times each throughout the article: ${keywordList}
-3. Focus on Lahore and Pakistan legal context - mention "Lahore High Court", "courts in Lahore", "Pakistan law" naturally.
-4. Be written in a humanized, engaging style - as if written by an experienced Pakistani lawyer. Use real-world examples, practical advice, and conversational yet professional tone.
-5. Be SEO-optimized (AEO/GEO friendly): include FAQ section at the end with 3-4 common questions, use proper headings (H2, H3).
-6. Include a compelling introduction and conclusion with a call to action mentioning M. Salman Tahir, Advocate.
-7. Be at least 1500 words long.
+CONTENT REQUIREMENTS:
+1. COMPLETELY REWRITTEN — do not paraphrase line-by-line. Reorganize the structure, change the order of ideas, use your own explanations and examples. Zero copied sentences.
+2. Naturally weave these SEO keywords in 5-6 times each across the article: ${keywordList}
+3. Ground everything in the Lahore / Pakistan legal context — reference "Lahore High Court", "courts in Lahore", relevant Pakistani statutes and sections naturally.
+4. SEO/AEO/GEO optimized: clear H2/H3 headings, scannable structure, and a FAQ section at the end with 3-4 real questions clients ask.
+5. Compelling intro and a conclusion with a call to action to consult M. Salman Tahir, Advocate.
+6. At least 1500 words.
 
-ORIGINAL ARTICLE TITLE: "${sourceTitle}"
+HUMANIZE — write so it reads like a real Pakistani lawyer wrote it, NOT like AI:
+- Vary sentence length deliberately. Mix short punchy sentences with longer ones. Avoid uniform rhythm.
+- Use natural contractions (it's, you'll, don't) and a warm, conversational-yet-professional tone.
+- Open sections with real-world scenarios, brief anecdotes from practice ("A client recently came to me...", "In Lahore courts I often see..."), and practical, actionable advice.
+- Address the reader directly as "you" where it helps.
+- Add specific, concrete details (timelines, document names, court procedures, rough cost/time expectations) instead of vague generalities.
+- AVOID AI giveaway phrases and clichés: do NOT use "In today's fast-paced world", "It is important to note", "Furthermore", "Moreover", "In conclusion", "delve into", "navigate the complexities", "tapestry", "landscape of", "robust", "leverage", "unlock", "realm", "ever-evolving", or em-dash overuse.
+- Allow mild, natural imperfection — rhetorical questions, asides, and occasional first-person opinion — so it feels authentically human.
+- Do not sound like a generic listicle. Write like an expert explaining things to a worried client.
 
-ORIGINAL ARTICLE CONTENT (reference only, DO NOT copy):
+ORIGINAL ARTICLE TITLE (reference): "${sourceTitle}"
+
+ORIGINAL ARTICLE CONTENT (background research only, DO NOT copy):
 ${sourceContent}
 
 IMPORTANT: After the English article, write "---URDU_VERSION---" and then write a complete Urdu version of the same article. The Urdu version should:
-- Be naturally written in Urdu (not machine-translated)
+- Be naturally written in Urdu (not machine-translated), in a warm human voice
 - Include these Urdu keywords naturally: ${urduKeywords}
 - Be at least 800 words
 - Maintain legal accuracy
@@ -245,11 +404,13 @@ Respond in this EXACT JSON format:
       messages: [
         {
           role: 'system',
-          content: 'You are a legal content specialist. Always respond with valid JSON only. No markdown code fences.',
+          content: 'You are a seasoned Pakistani lawyer who writes warm, human, first-person legal blog posts that never sound AI-generated. Always respond with valid JSON only. No markdown code fences.',
         },
         { role: 'user', content: prompt },
       ],
-      temperature: 0.8,
+      temperature: 0.85,
+      frequency_penalty: 0.3,
+      presence_penalty: 0.3,
       max_tokens: 8000,
     });
 
@@ -286,15 +447,18 @@ async function runContentJob(): Promise<void> {
 
   // Find an article URL that hasn't been processed yet
   const processedUrls = await database.contentJobs
-    .find({ status: { $in: ['success', 'running'] } })
+    .find({ status: { $in: ['success', 'running', 'failed'] } })
     .project({ sourceUrl: 1 })
     .toArray();
 
   const processedSet = new Set(processedUrls.map(j => j.sourceUrl));
-  const availableUrls = COMPETITOR_ARTICLE_URLS.filter(url => !processedSet.has(url));
+
+  // Discover popular/fresh competitor articles live (falls back to seed list).
+  const candidateUrls = await discoverCompetitorArticles();
+  const availableUrls = candidateUrls.filter(url => !processedSet.has(url));
 
   if (availableUrls.length === 0) {
-    console.log('[ContentJob] All competitor articles have been processed. Skipping.');
+    console.log('[ContentJob] All discovered competitor articles have been processed. Skipping.');
     await database.contentJobs.insertOne({
       status: 'skipped',
       sourceUrl: '',
@@ -307,8 +471,10 @@ async function runContentJob(): Promise<void> {
     return;
   }
 
-  // Pick a random unprocessed article
-  const targetUrl = availableUrls[Math.floor(Math.random() * availableUrls.length)];
+  // Prefer the highest-priority unprocessed article (popular/fresh first),
+  // with light randomization among the top candidates to avoid repetition.
+  const topPool = availableUrls.slice(0, Math.min(5, availableUrls.length));
+  const targetUrl = topPool[Math.floor(Math.random() * topPool.length)];
 
   // Create job record (running)
   const jobRecord: ContentJob = {
