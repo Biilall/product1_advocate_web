@@ -16,6 +16,7 @@ import { GoogleAuth } from 'google-auth-library';
 // Import MongoDB operations
 import { initializeDatabase, createUser, getOrCreateUserForThread, createChatHistory, getThreadByThreadId, createThread, getAllUsers, getRecentChatHistory, getAllThreads, getDashboardStats, getChatTopics, getChatTopicsByUser, getChatHistoryByThread, createPayment, updatePaymentByTracker, getPaymentByTracker, getAllPayments, getPaymentStats, getPaymentsByThread, getUserById, createBlogPost, updateBlogPost, deleteBlogPost, getBlogPostById, getBlogPostBySlug, getPublishedBlogPosts, getBlogPostsByCategory, getAllBlogPosts, getBlogCategories, getAllBlogSlugs } from './db-operations.js';
 import { startContentAutomation, triggerContentJob, getContentJobStats, getContentJobLogs } from './content-automation.js';
+import { GLOSSARY, getGlossaryTerm } from './glossary-data.js';
 type ChatHistoryRow = {
   _id: string;
   threadId: string;
@@ -1910,6 +1911,26 @@ app.post('/api/dashboard/content-jobs/trigger', requireAuth, async (_req, res) =
   }
 });
 
+// Public glossary API — list all terms
+app.get('/api/glossary', (_req, res) => {
+  const list = GLOSSARY.map(({ slug, term, shortDefinition, category }) => ({
+    slug,
+    term,
+    shortDefinition,
+    category,
+  }));
+  res.json(list);
+});
+
+// Public glossary API — single term by slug
+app.get('/api/glossary/:slug', (req, res) => {
+  const term = getGlossaryTerm(req.params.slug as string);
+  if (!term) {
+    return res.status(404).json({ error: 'Term not found' });
+  }
+  res.json(term);
+});
+
 // Dynamic sitemap.xml with blog posts
 app.get('/sitemap.xml', async (_req, res) => {
   try {
@@ -1939,6 +1960,12 @@ app.get('/sitemap.xml', async (_req, res) => {
   </url>
   <url>
     <loc>${baseUrl}/reviews</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/glossary</loc>
     <lastmod>${today}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -2011,6 +2038,16 @@ app.get('/sitemap.xml', async (_req, res) => {
     <lastmod>${post.updatedAt.toISOString().split('T')[0]}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>`;
+    }
+
+    for (const t of GLOSSARY) {
+      xml += `
+  <url>
+    <loc>${baseUrl}/glossary/${t.slug}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
   </url>`;
     }
 
@@ -2423,6 +2460,162 @@ app.get(['/about', '/blog', '/reviews', '/fees', '/privacy-policy', '/refund-pol
       ssrContent += `</section>`;
 
       injectedHtml = injectedHtml.replace('<div id="root"></div>', `<div id="root"></div>${ssrContent}`);
+
+      return res.send(injectedHtml);
+    }
+
+    res.send(indexHtml);
+  } catch (error) {
+    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  }
+});
+
+// SSR meta + schema injection for glossary pages (for crawlers / AEO)
+app.get('/glossary', (_req, res) => {
+  try {
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
+    const baseUrl = 'https://msalmantahir.com';
+    const title = 'Pakistani Legal Glossary — Common Law Terms Explained | M Salman Tahir, Advocate';
+    const description = 'Plain-English definitions of common Pakistani legal terms — khula, talaq, pre-arrest bail, FIR, iqrarnama, benami, decree and more. Explained by Advocate M Salman Tahir, High Court of Pakistan.';
+    const canonical = `${baseUrl}/glossary`;
+
+    let injectedHtml = indexHtml
+      .replace(/<title>.*?<\/title>/, `<title>${title}</title>`)
+      .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="${description}" />`)
+      .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${canonical}" />`)
+      .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${canonical}" />`)
+      .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${title}" />`)
+      .replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${description}" />`)
+      .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${title}" />`)
+      .replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${description}" />`);
+
+    // BreadcrumbList + ItemList (CollectionPage) schema
+    const breadcrumbLd = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": baseUrl },
+        { "@type": "ListItem", "position": 2, "name": "Legal Glossary", "item": canonical }
+      ]
+    });
+    const itemListLd = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "Pakistani Legal Glossary",
+      "url": canonical,
+      "description": description,
+      "hasPart": GLOSSARY.map((t) => ({
+        "@type": "DefinedTerm",
+        "name": t.term,
+        "description": t.shortDefinition,
+        "url": `${baseUrl}/glossary/${t.slug}`
+      }))
+    });
+    injectedHtml = injectedHtml.replace('</head>', `<script type="application/ld+json">${breadcrumbLd}</script>\n  <script type="application/ld+json">${itemListLd}</script>\n  </head>`);
+
+    // SSR body content for crawlers/LLMs
+    let ssr = `<section id="ssr-content" style="display:none"><h1>Pakistani Legal Glossary</h1><p>${description}</p><ul>`;
+    for (const t of GLOSSARY) {
+      ssr += `<li><a href="/glossary/${t.slug}"><strong>${t.term}</strong></a> — ${t.shortDefinition}</li>`;
+    }
+    ssr += `</ul><footer><p>M Salman Tahir — Advocate, High Court of Pakistan | <a href="tel:+923006829799">+92 300 6829799</a></p></footer></section>`;
+    injectedHtml = injectedHtml.replace('<div id="root"></div>', `<div id="root"></div>${ssr}`);
+
+    return res.send(injectedHtml);
+  } catch (error) {
+    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  }
+});
+
+app.get('/glossary/:slug', (req, res) => {
+  try {
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
+    const term = getGlossaryTerm(req.params.slug as string);
+    const baseUrl = 'https://msalmantahir.com';
+
+    if (term) {
+      const title = `What is ${term.term}? Meaning & Legal Explanation | M Salman Tahir, Advocate`;
+      const metaDesc = (term.shortDefinition.length > 155
+        ? term.shortDefinition.slice(0, 152).trimEnd() + '…'
+        : term.shortDefinition);
+      const canonical = `${baseUrl}/glossary/${term.slug}`;
+
+      let injectedHtml = indexHtml
+        .replace(/<title>.*?<\/title>/, `<title>${title}</title>`)
+        .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="${metaDesc.replace(/"/g, '&quot;')}" />`)
+        .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${canonical}" />`)
+        .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${canonical}" />`)
+        .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${title}" />`)
+        .replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${metaDesc.replace(/"/g, '&quot;')}" />`)
+        .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${title}" />`)
+        .replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${metaDesc.replace(/"/g, '&quot;')}" />`);
+
+      // DefinedTerm schema (entity recognition for GEO)
+      const definedTermLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "DefinedTerm",
+        "name": term.term,
+        "description": term.shortDefinition,
+        "url": canonical,
+        "inDefinedTermSet": {
+          "@type": "DefinedTermSet",
+          "name": "Pakistani Legal Glossary",
+          "url": `${baseUrl}/glossary`
+        }
+      });
+      // FAQPage schema — "What is X?" answered by the short definition (snippet/AEO)
+      const faqLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [{
+          "@type": "Question",
+          "name": `What is ${term.term}?`,
+          "acceptedAnswer": { "@type": "Answer", "text": term.shortDefinition }
+        }]
+      });
+      const breadcrumbLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": baseUrl },
+          { "@type": "ListItem", "position": 2, "name": "Legal Glossary", "item": `${baseUrl}/glossary` },
+          { "@type": "ListItem", "position": 3, "name": term.term, "item": canonical }
+        ]
+      });
+      const speakableLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": title,
+        "speakable": { "@type": "SpeakableSpecification", "cssSelector": ["h1", ".term-definition"] },
+        "url": canonical
+      });
+      injectedHtml = injectedHtml.replace('</head>',
+        `<script type="application/ld+json">${definedTermLd}</script>\n` +
+        `  <script type="application/ld+json">${faqLd}</script>\n` +
+        `  <script type="application/ld+json">${breadcrumbLd}</script>\n` +
+        `  <script type="application/ld+json">${speakableLd}</script>\n  </head>`);
+
+      // SSR body content for crawlers/LLMs
+      let ssr = `<section id="ssr-content" style="display:none">`;
+      ssr += `<nav><a href="/glossary">Legal Glossary</a> › ${term.term}</nav>`;
+      ssr += `<h1>What is ${term.term}?</h1>`;
+      ssr += `<p class="term-definition">${term.shortDefinition}</p>`;
+      for (const para of term.body) {
+        ssr += `<p>${para}</p>`;
+      }
+      if (term.relatedService) {
+        ssr += `<p>Need help with a related matter? See our <a href="${term.relatedService.path}">${term.relatedService.label}</a> services.</p>`;
+      }
+      if (term.relatedTerms && term.relatedTerms.length > 0) {
+        ssr += `<section><h2>Related terms</h2><ul>`;
+        for (const rs of term.relatedTerms) {
+          const rt = getGlossaryTerm(rs);
+          if (rt) ssr += `<li><a href="/glossary/${rt.slug}">${rt.term}</a></li>`;
+        }
+        ssr += `</ul></section>`;
+      }
+      ssr += `<footer><p>M Salman Tahir — Advocate, High Court of Pakistan | <a href="tel:+923006829799">+92 300 6829799</a> | Lahore</p></footer></section>`;
+      injectedHtml = injectedHtml.replace('<div id="root"></div>', `<div id="root"></div>${ssr}`);
 
       return res.send(injectedHtml);
     }

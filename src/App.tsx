@@ -28,6 +28,8 @@ const CivilLitigation = lazy(() => import("./pages/services/CivilLitigation.tsx"
 const FamilyLaw = lazy(() => import("./pages/services/FamilyLaw.tsx"));
 const CorporateLaw = lazy(() => import("./pages/services/CorporateLaw.tsx"));
 const IntellectualProperty = lazy(() => import("./pages/services/IntellectualProperty.tsx"));
+const Glossary = lazy(() => import("./pages/Glossary.tsx"));
+const GlossaryTerm = lazy(() => import("./pages/GlossaryTerm.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -60,6 +62,8 @@ const App = () => (
           <Route path="/services/family-law" element={<FamilyLaw />} />
           <Route path="/services/corporate-law" element={<CorporateLaw />} />
           <Route path="/services/intellectual-property" element={<IntellectualProperty />} />
+          <Route path="/glossary" element={<Glossary />} />
+          <Route path="/glossary/:slug" element={<GlossaryTerm />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
