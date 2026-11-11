@@ -95,7 +95,7 @@ class Database {
   public contentJobs!: Collection<ContentJob>;
 
   constructor() {
-    this.mongoUrl = process.env.MONGODB_URI || process.env.MONGODB_URL || 'mongodb://REDACTED_USER:REDACTED_PASSWORD@127.0.0.1:27017/law_nexus_chat?authSource=admin';
+    this.mongoUrl = process.env.MONGODB_URI || process.env.MONGODB_URL || 'mongodb://127.0.0.1:27017';
     this.dbName = process.env.MONGODB_DB_NAME || 'law_nexus_chat';
 
     console.log('Connecting to MongoDB:', this.mongoUrl.replace(/\/\/.*@/, '//***:***@'));
